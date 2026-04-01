@@ -2,7 +2,8 @@
 const nextConfig = {
   output: 'export',
   distDir: 'dist',
-  assetPrefix: '.',
+  basePath: '/Dynamic',
+  assetPrefix: '/Dynamic/',
   images: {
     unoptimized: true,
   },
