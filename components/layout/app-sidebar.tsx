@@ -79,10 +79,10 @@ const platformSection: MenuSection = {
       name: "BOM Management",
       type: "collapsible",
       icon: Boxes,
-      defaultOpen: false,
+      defaultOpen: true,
       children: [
-        { name: "Conflict Management", path: "/bom/conflict-management" },
-        { name: "PPN替代关系映射", path: "/bom/ppn-mapping" },
+        { name: "Conflict Audit", path: "/bom/conflict-management" },
+        { name: "Substitution Audit", path: "/bom/substitution-audit" },
         { name: "Original Table", path: "/bom/original-table" },
       ],
     },
@@ -195,7 +195,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="flex flex-col gap-2">
               {platformSection.items.map((item) =>
                 item.type === "link" ? (
                   <SidebarMenuItem key={item.name}>
@@ -254,7 +254,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupLabel>Settings</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="flex flex-col gap-2">
               {settingsSection.items.map((item) => (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton

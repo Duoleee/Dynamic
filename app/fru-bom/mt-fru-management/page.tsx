@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import {
   Select,
   SelectContent,
@@ -18,6 +19,27 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TagsInput } from "@/components/ui/tags-input"
+import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+import { DateRangePicker } from "@/components/ui/date-range-picker"
+import { DateRange } from "react-day-picker"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import {
   ChevronLeft,
   ChevronRight,
@@ -26,6 +48,9 @@ import {
   Download,
   RotateCcw,
   Settings,
+  ChevronDown,
+  Filter,
+  GripVertical,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -35,275 +60,279 @@ interface Column {
   label: string
   width: number
   visible: boolean
+  required?: boolean
 }
 
 // Mock data for MT-FRU Management
 interface MtFruData {
   id: string
-  mt: string
-  fruName: string
-  ccType: string
-  updateType: string
   fru: string
-  level: string
-  lenovoPpn: string
-  vendorPpn: string
-  substituteLenovoPpn: string
-  lenovoPpnBasicName: string
-  lenovoPpnName: string
-  lenovoPpnQty: string
-  specCategory: string
-  specDescription: string
-  attributeValue: string
-  ppnDesc: string
-  odmSupplierName: string
-  commGroup: string
+  fruName: string
+  commodityCode: string
+  basicName: string
+  name: string
+  description: string
+  mt: string
+  productName: string
+  productType: string
+  brand: string
+  segment: string
+  series: string
+  newRefresh: string
+  ss: string
+  changeType: string
+  changeTime: string
+  updateTime: string
+  status: "current" | "history"
 }
 
 const mockData: MtFruData[] = [
   {
     id: "1",
-    mt: "MT001",
+    fru: "00HM169",
     fruName: "Motherboard Assembly",
-    ccType: "Type A",
-    updateType: "New",
-    fru: "FRU001",
-    level: "L1",
-    lenovoPpn: "LPN-12345",
-    vendorPpn: "VPN-ABCDE",
-    substituteLenovoPpn: "LPN-12345-R",
-    lenovoPpnBasicName: "MB-ASM-001",
-    lenovoPpnName: "Motherboard Assembly Gen 5",
-    lenovoPpnQty: "1",
-    specCategory: "Electronics",
-    specDescription: "Main system board",
-    attributeValue: "ATX",
-    ppnDesc: "Primary Board",
-    odmSupplierName: "Foxconn",
-    commGroup: "HW",
+    commodityCode: "CC001",
+    basicName: "MB-ASM",
+    name: "Motherboard Assembly Gen 5",
+    description: "Main system board with Intel chipset",
+    mt: "MT001",
+    productName: "ThinkPad X1 Carbon",
+    productType: "Laptop",
+    brand: "ThinkPad",
+    segment: "Premium",
+    series: "X1",
+    newRefresh: "New",
+    ss: "SS01",
+    changeType: "Add",
+    changeTime: "2024-04-07 10:10:00",
+    updateTime: "2024-04-07 10:10:00",
+    status: "current",
   },
   {
     id: "2",
-    mt: "MT002",
+    fru: "00HM170",
     fruName: "Power Supply Unit",
-    ccType: "Type B",
-    updateType: "Update",
-    fru: "FRU002",
-    level: "L1",
-    lenovoPpn: "LPN-12346",
-    vendorPpn: "VPN-ABCDF",
-    substituteLenovoPpn: "LPN-12346-R",
-    lenovoPpnBasicName: "PSU-500W",
-    lenovoPpnName: "500W Power Supply",
-    lenovoPpnQty: "1",
-    specCategory: "Power",
-    specDescription: "500W 80 Plus Gold",
-    attributeValue: "500W",
-    ppnDesc: "Power Unit",
-    odmSupplierName: "Delta",
-    commGroup: "HW",
+    commodityCode: "CC002",
+    basicName: "PSU-500W",
+    name: "500W Power Supply",
+    description: "High efficiency power supply unit",
+    mt: "MT002",
+    productName: "ThinkPad T14",
+    productType: "Laptop",
+    brand: "ThinkPad",
+    segment: "Business",
+    series: "T",
+    newRefresh: "Refresh",
+    ss: "SS02",
+    changeType: "Modify",
+    changeTime: "2024-04-07 09:15:00",
+    updateTime: "2024-04-07 09:15:00",
+    status: "current",
   },
   {
     id: "3",
-    mt: "MT003",
+    fru: "00HM171",
     fruName: "Memory Module 16GB",
-    ccType: "Type A",
-    updateType: "New",
-    fru: "FRU003",
-    level: "L2",
-    lenovoPpn: "LPN-12347",
-    vendorPpn: "VPN-ABCDG",
-    substituteLenovoPpn: "LPN-12347-R",
-    lenovoPpnBasicName: "DDR4-16GB",
-    lenovoPpnName: "16GB DDR4 RAM",
-    lenovoPpnQty: "2",
-    specCategory: "Memory",
-    specDescription: "DDR4 3200MHz",
-    attributeValue: "16GB",
-    ppnDesc: "RAM Module",
-    odmSupplierName: "Samsung",
-    commGroup: "MEM",
+    commodityCode: "CC003",
+    basicName: "DDR4-16GB",
+    name: "16GB DDR4 RAM",
+    description: "High performance memory module",
+    mt: "MT003",
+    productName: "ThinkPad P1",
+    productType: "Workstation",
+    brand: "ThinkPad",
+    segment: "Premium",
+    series: "P",
+    newRefresh: "New",
+    ss: "SS03",
+    changeType: "Add",
+    changeTime: "2024-04-06 16:20:00",
+    updateTime: "2024-04-06 16:20:00",
+    status: "current",
   },
   {
     id: "4",
-    mt: "MT004",
+    fru: "00HM173",
     fruName: "SSD 512GB",
-    ccType: "Type C",
-    updateType: "Delete",
-    fru: "FRU004",
-    level: "L2",
-    lenovoPpn: "LPN-12348",
-    vendorPpn: "VPN-ABCDH",
-    substituteLenovoPpn: "LPN-12348-R",
-    lenovoPpnBasicName: "SSD-512GB",
-    lenovoPpnName: "512GB NVMe SSD",
-    lenovoPpnQty: "1",
-    specCategory: "Storage",
-    specDescription: "NVMe Gen4 SSD",
-    attributeValue: "512GB",
-    ppnDesc: "Storage Drive",
-    odmSupplierName: "WD",
-    commGroup: "STOR",
+    commodityCode: "CC004",
+    basicName: "SSD-512GB",
+    name: "512GB NVMe SSD",
+    description: "Fast NVMe storage drive",
+    mt: "MT004",
+    productName: "ThinkPad E14",
+    productType: "Laptop",
+    brand: "ThinkPad",
+    segment: "Entry",
+    series: "E",
+    newRefresh: "Refresh",
+    ss: "SS04",
+    changeType: "Delete",
+    changeTime: "2024-04-05 14:30:00",
+    updateTime: "2024-04-05 14:30:00",
+    status: "history",
   },
   {
     id: "5",
-    mt: "MT005",
+    fru: "00HN508",
     fruName: "WiFi Card",
-    ccType: "Type A",
-    updateType: "New",
-    fru: "FRU005",
-    level: "L3",
-    lenovoPpn: "LPN-12349",
-    vendorPpn: "VPN-ABCDI",
-    substituteLenovoPpn: "LPN-12349-R",
-    lenovoPpnBasicName: "WIFI6-CARD",
-    lenovoPpnName: "WiFi 6 AX200",
-    lenovoPpnQty: "1",
-    specCategory: "Network",
-    specDescription: "802.11ax WiFi",
-    attributeValue: "WiFi6",
-    ppnDesc: "Wireless Card",
-    odmSupplierName: "Intel",
-    commGroup: "NET",
+    commodityCode: "CC005",
+    basicName: "WIFI6-CARD",
+    name: "WiFi 6 AX200",
+    description: "Wireless network adapter",
+    mt: "MT005",
+    productName: "ThinkPad X13",
+    productType: "Laptop",
+    brand: "ThinkPad",
+    segment: "Premium",
+    series: "X",
+    newRefresh: "New",
+    ss: "SS05",
+    changeType: "Add",
+    changeTime: "2024-04-07 08:00:00",
+    updateTime: "2024-04-07 08:00:00",
+    status: "current",
   },
   {
     id: "6",
-    mt: "MT006",
+    fru: "00HM175",
     fruName: "CPU Processor",
-    ccType: "Type B",
-    updateType: "Update",
-    fru: "FRU006",
-    level: "L1",
-    lenovoPpn: "LPN-12350",
-    vendorPpn: "VPN-ABCDJ",
-    substituteLenovoPpn: "LPN-12350-R",
-    lenovoPpnBasicName: "CPU-I7-12TH",
-    lenovoPpnName: "Intel Core i7-12700",
-    lenovoPpnQty: "1",
-    specCategory: "Processor",
-    specDescription: "12th Gen Intel CPU",
-    attributeValue: "i7",
-    ppnDesc: "Main Processor",
-    odmSupplierName: "Intel",
-    commGroup: "CPU",
+    commodityCode: "CC006",
+    basicName: "CPU-I7-12TH",
+    name: "Intel Core i7-12700",
+    description: "High performance processor",
+    mt: "MT006",
+    productName: "ThinkPad P15",
+    productType: "Workstation",
+    brand: "ThinkPad",
+    segment: "Premium",
+    series: "P",
+    newRefresh: "New",
+    ss: "SS06",
+    changeType: "Modify",
+    changeTime: "2024-04-04 11:20:00",
+    updateTime: "2024-04-04 11:20:00",
+    status: "history",
   },
   {
     id: "7",
-    mt: "MT007",
+    fru: "00HM176",
     fruName: "Cooling Fan",
-    ccType: "Type A",
-    updateType: "New",
-    fru: "FRU007",
-    level: "L2",
-    lenovoPpn: "LPN-12351",
-    vendorPpn: "VPN-ABCDK",
-    substituteLenovoPpn: "LPN-12351-R",
-    lenovoPpnBasicName: "FAN-120MM",
-    lenovoPpnName: "120mm Cooling Fan",
-    lenovoPpnQty: "3",
-    specCategory: "Cooling",
-    specDescription: "High airflow fan",
-    attributeValue: "120mm",
-    ppnDesc: "System Fan",
-    odmSupplierName: "Delta",
-    commGroup: "COOL",
+    commodityCode: "CC007",
+    basicName: "FAN-120MM",
+    name: "120mm Cooling Fan",
+    description: "High airflow cooling fan",
+    mt: "MT007",
+    productName: "ThinkPad L14",
+    productType: "Laptop",
+    brand: "ThinkPad",
+    segment: "Business",
+    series: "L",
+    newRefresh: "Refresh",
+    ss: "SS07",
+    changeType: "Add",
+    changeTime: "2024-04-07 07:30:00",
+    updateTime: "2024-04-07 07:30:00",
+    status: "current",
   },
   {
     id: "8",
-    mt: "MT008",
+    fru: "00HM177",
     fruName: "Graphics Card",
-    ccType: "Type C",
-    updateType: "Update",
-    fru: "FRU008",
-    level: "L1",
-    lenovoPpn: "LPN-12352",
-    vendorPpn: "VPN-ABCDL",
-    substituteLenovoPpn: "LPN-12352-R",
-    lenovoPpnBasicName: "GPU-RTX3060",
-    lenovoPpnName: "NVIDIA RTX 3060",
-    lenovoPpnQty: "1",
-    specCategory: "Graphics",
-    specDescription: "Dedicated GPU",
-    attributeValue: "RTX3060",
-    ppnDesc: "Video Card",
-    odmSupplierName: "NVIDIA",
-    commGroup: "GPU",
+    commodityCode: "CC008",
+    basicName: "GPU-RTX3060",
+    name: "NVIDIA RTX 3060",
+    description: "Dedicated graphics card",
+    mt: "MT008",
+    productName: "ThinkPad P17",
+    productType: "Workstation",
+    brand: "ThinkPad",
+    segment: "Premium",
+    series: "P",
+    newRefresh: "New",
+    ss: "SS08",
+    changeType: "Modify",
+    changeTime: "2024-04-03 15:45:00",
+    updateTime: "2024-04-03 15:45:00",
+    status: "history",
   },
   {
     id: "9",
-    mt: "MT009",
+    fru: "00HM178",
     fruName: "Keyboard",
-    ccType: "Type A",
-    updateType: "New",
-    fru: "FRU009",
-    level: "L3",
-    lenovoPpn: "LPN-12353",
-    vendorPpn: "VPN-ABCDM",
-    substituteLenovoPpn: "LPN-12353-R",
-    lenovoPpnBasicName: "KB-US-ENG",
-    lenovoPpnName: "US English Keyboard",
-    lenovoPpnQty: "1",
-    specCategory: "Input",
-    specDescription: "Backlit keyboard",
-    attributeValue: "US",
-    ppnDesc: "Keyboard",
-    odmSupplierName: "Lite-On",
-    commGroup: "INP",
+    commodityCode: "CC009",
+    basicName: "KB-US-ENG",
+    name: "US English Keyboard",
+    description: "Backlit keyboard with TrackPoint",
+    mt: "MT009",
+    productName: "ThinkPad X1 Yoga",
+    productType: "2-in-1",
+    brand: "ThinkPad",
+    segment: "Premium",
+    series: "X1",
+    newRefresh: "Refresh",
+    ss: "SS09",
+    changeType: "Add",
+    changeTime: "2024-04-07 06:15:00",
+    updateTime: "2024-04-07 06:15:00",
+    status: "current",
   },
   {
     id: "10",
-    mt: "MT010",
+    fru: "00HM179",
     fruName: "Display Panel",
-    ccType: "Type B",
-    updateType: "Delete",
-    fru: "FRU010",
-    level: "L1",
-    lenovoPpn: "LPN-12354",
-    vendorPpn: "VPN-ABCDN",
-    substituteLenovoPpn: "LPN-12354-R",
-    lenovoPpnBasicName: "LCD-15.6FHD",
-    lenovoPpnName: "15.6 FHD Display",
-    lenovoPpnQty: "1",
-    specCategory: "Display",
-    specDescription: "Full HD IPS panel",
-    attributeValue: "15.6",
-    ppnDesc: "Screen",
-    odmSupplierName: "LG",
-    commGroup: "DISP",
+    commodityCode: "CC010",
+    basicName: "LCD-15.6FHD",
+    name: "15.6 FHD Display",
+    description: "Full HD IPS display panel",
+    mt: "MT010",
+    productName: "ThinkPad T15",
+    productType: "Laptop",
+    brand: "ThinkPad",
+    segment: "Business",
+    series: "T",
+    newRefresh: "New",
+    ss: "SS10",
+    changeType: "Delete",
+    changeTime: "2024-04-02 10:20:00",
+    updateTime: "2024-04-02 10:20:00",
+    status: "history",
   },
 ]
 
 // Generate more mock data
 const generateMoreData = (count: number): MtFruData[] => {
   const data: MtFruData[] = []
-  const categories = ["Electronics", "Power", "Memory", "Storage", "Network", "Processor", "Cooling", "Graphics", "Input", "Display"]
-  const suppliers = ["Foxconn", "Delta", "Samsung", "WD", "Intel", "NVIDIA", "LG", "Lite-On", "Innolux", "AUO"]
-  const commGroups = ["HW", "MEM", "STOR", "NET", "CPU", "COOL", "GPU", "INP", "DISP", "PWR"]
-  const ccTypes = ["Type A", "Type B", "Type C", "Type D"]
-  const updateTypes = ["New", "Update", "Delete"]
-  
+  const changeTypes = ["Add", "Modify", "Delete"]
+  const brands = ["ThinkPad", "IdeaPad", "Legion"]
+  const segments = ["Premium", "Business", "Entry"]
+  const series = ["X1", "T", "X", "P", "E", "L", "Yoga"]
+  const newRefresh = ["New", "Refresh"]
+  const fruList = ["00HM169", "00HM170", "00HM171", "00HM173", "00HN508", "00HM175", "00HM176", "00HM177", "00HM178", "00HM179"]
+
   for (let i = 0; i < count; i++) {
     const idx = i % 10
+    const isCurrent = i % 3 !== 0
+    const date = new Date(2024, 3, 7 - (i % 10), 10 - (i % 10), i % 60, i % 60)
     data.push({
       id: `${i + 11}`,
-      mt: `MT${(i + 11).toString().padStart(3, "0")}`,
+      fru: fruList[idx],
       fruName: `Component ${i + 11}`,
-      ccType: ccTypes[i % 4],
-      updateType: updateTypes[i % 3],
-      fru: `FRU${(i + 11).toString().padStart(3, "0")}`,
-      level: `L${(i % 3) + 1}`,
-      lenovoPpn: `LPN-${12345 + i}`,
-      vendorPpn: `VPN-${String.fromCharCode(65 + i % 26)}${String.fromCharCode(66 + i % 26)}${String.fromCharCode(67 + i % 26)}${String.fromCharCode(68 + i % 26)}${String.fromCharCode(69 + i % 26)}`,
-      substituteLenovoPpn: i % 2 === 0 ? `LPN-${12345 + i}-R` : "-",
-      lenovoPpnBasicName: `COMP-${i + 11}`,
-      lenovoPpnName: `Component Name ${i + 11}`,
-      lenovoPpnQty: `${(i % 4) + 1}`,
-      specCategory: categories[idx],
-      specDescription: `Description for component ${i + 11}`,
-      attributeValue: `VAL-${i + 11}`,
-      ppnDesc: `PPN Description ${i + 11}`,
-      odmSupplierName: suppliers[idx],
-      commGroup: commGroups[idx],
+      commodityCode: `CC${(i + 11).toString().padStart(3, "0")}`,
+      basicName: `BASIC-${i + 11}`,
+      name: `Component Name ${i + 11}`,
+      description: `Description for component ${i + 11}`,
+      mt: `MT${(i + 11).toString().padStart(3, "0")}`,
+      productName: `Product ${i + 11}`,
+      productType: i % 2 === 0 ? "Laptop" : "Workstation",
+      brand: brands[i % 3],
+      segment: segments[i % 3],
+      series: series[i % 7],
+      newRefresh: newRefresh[i % 2],
+      ss: `SS${(i + 11).toString().padStart(2, "0")}`,
+      changeType: changeTypes[i % 3],
+      changeTime: date.toISOString().replace("T", " ").slice(0, 19),
+      updateTime: date.toISOString().replace("T", " ").slice(0, 19),
+      status: isCurrent ? "current" : "history",
     })
   }
   return data
@@ -311,95 +340,339 @@ const generateMoreData = (count: number): MtFruData[] => {
 
 const allData = [...mockData, ...generateMoreData(40)]
 
-// Default columns
+// Default columns - 按照要求的字段顺序
+// required: true 表示不可隐藏的列
 const defaultColumns: Column[] = [
-  { key: "mt", label: "MT", width: 100, visible: true },
-  { key: "fruName", label: "Fru Name", width: 140, visible: true },
-  { key: "ccType", label: "CC Type", width: 100, visible: true },
-  { key: "updateType", label: "Update Type", width: 100, visible: true },
-  { key: "fru", label: "FRU", width: 100, visible: true },
-  { key: "level", label: "Level", width: 70, visible: true },
-  { key: "lenovoPpn", label: "Lenovo PPN", width: 120, visible: true },
-  { key: "vendorPpn", label: "Vendor PPN", width: 120, visible: true },
-  { key: "substituteLenovoPpn", label: "Substitute Lenovo PPN", width: 140, visible: true },
-  { key: "lenovoPpnBasicName", label: "Lenovo PPN Basic Name", width: 160, visible: true },
-  { key: "lenovoPpnName", label: "Lenovo PPN Name", width: 160, visible: true },
-  { key: "lenovoPpnQty", label: "Lenovo PPN Qty", width: 110, visible: true },
-  { key: "specCategory", label: "Spec Category", width: 120, visible: true },
-  { key: "specDescription", label: "Spec Description", width: 160, visible: true },
-  { key: "attributeValue", label: "Attribute Value", width: 120, visible: true },
-  { key: "ppnDesc", label: "PPN Desc", width: 120, visible: true },
-  { key: "odmSupplierName", label: "ODM Supplier Name", width: 140, visible: true },
-  { key: "commGroup", label: "Comm Group", width: 100, visible: true },
+  { key: "fru", label: "FRU", width: 110, visible: true, required: true },
+  { key: "fruName", label: "FRU Name", width: 160, visible: true },
+  { key: "commodityCode", label: "Commodity Code", width: 130, visible: true },
+  { key: "basicName", label: "Basic Name", width: 130, visible: true },
+  { key: "name", label: "Name", width: 180, visible: true },
+  { key: "description", label: "Description", width: 220, visible: true },
+  { key: "mt", label: "MT", width: 100, visible: true, required: true },
+  { key: "productName", label: "Product Name", width: 160, visible: true },
+  { key: "productType", label: "Product Type", width: 120, visible: true },
+  { key: "brand", label: "Brand", width: 100, visible: true },
+  { key: "segment", label: "Segment", width: 100, visible: true },
+  { key: "series", label: "Series", width: 90, visible: true },
+  { key: "newRefresh", label: "New Refresh", width: 100, visible: true },
+  { key: "ss", label: "SS", width: 70, visible: true },
+  { key: "changeType", label: "Change Type", width: 110, visible: true, required: true },
+  { key: "changeTime", label: "Change Time", width: 150, visible: true, required: true },
 ]
+
+// Filter options
+const changeTypeOptions: MultiSelectOption[] = [
+  { value: "Add", label: "Add" },
+  { value: "Modify", label: "Modify" },
+  { value: "Delete", label: "Delete" },
+]
+
+// Sortable header component for column settings
+interface SortableHeaderProps {
+  column: Column
+  onToggleVisibility: (key: string) => void
+}
+
+function SortableHeader({ column, onToggleVisibility }: SortableHeaderProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: column.key })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded cursor-pointer select-none",
+        isDragging && "bg-muted shadow-lg",
+        column.required && "opacity-80"
+      )}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+      >
+        <GripVertical className="h-4 w-4" />
+      </div>
+      <Checkbox
+        checked={column.visible}
+        onCheckedChange={() => onToggleVisibility(column.key)}
+        disabled={column.required}
+      />
+      <span className="text-sm flex-1">{column.label}</span>
+      {column.required && (
+        <span className="text-xs text-muted-foreground">Required</span>
+      )}
+    </div>
+  )
+}
+
+// Sortable table header component
+interface SortableTableHeaderProps {
+  column: Column
+  isFirst: boolean
+}
+
+function SortableTableHeader({ column, isFirst }: SortableTableHeaderProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: column.key })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : isFirst ? 20 : 10,
+    width: column.width,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center h-10 px-4 border-r shrink-0 bg-muted cursor-grab active:cursor-grabbing",
+        isFirst && "sticky left-0 z-20",
+        isDragging && "bg-muted shadow-lg opacity-80"
+      )}
+      {...attributes}
+      {...listeners}
+    >
+      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
+        {column.label}
+      </span>
+    </div>
+  )
+}
 
 export default function MtFruManagementPage() {
   const [columns, setColumns] = useState<Column[]>(defaultColumns)
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [activeTab, setActiveTab] = useState("fru-mt")
+  const [filtersOpen, setFiltersOpen] = useState(false)
+
+  // Status toggle: "current" | "all"
+  const [statusView, setStatusView] = useState<"current" | "all">("current")
+
+  // Filter states
+  const [selectedFrus, setSelectedFrus] = useState<string[]>([])
+  const [fruNameSearch, setFruNameSearch] = useState("")
+  const [selectedMts, setSelectedMts] = useState<string[]>([])
+  const [selectedChangeTypes, setSelectedChangeTypes] = useState<string[]>([])
+  const [changeTimeRange, setChangeTimeRange] = useState<DateRange | undefined>(undefined)
+  const [updateTimeRange, setUpdateTimeRange] = useState<DateRange | undefined>(undefined)
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Filter and sort data
+  const filteredData = useMemo(() => {
+    let result = allData.filter((row) => {
+      // Status view filter
+      if (statusView === "current" && row.status !== "current") {
+        return false
+      }
+
+      // FRU filter
+      if (selectedFrus.length > 0 && !selectedFrus.includes(row.fru)) {
+        return false
+      }
+
+      // FRU Name filter (fuzzy search)
+      if (fruNameSearch && !row.fruName.toLowerCase().includes(fruNameSearch.toLowerCase())) {
+        return false
+      }
+
+      // MT filter
+      if (selectedMts.length > 0 && !selectedMts.includes(row.mt)) {
+        return false
+      }
+
+      // Change Type filter
+      if (selectedChangeTypes.length > 0 && !selectedChangeTypes.includes(row.changeType)) {
+        return false
+      }
+
+      // Change Time filter
+      if (changeTimeRange?.from) {
+        const rowDate = new Date(row.changeTime)
+        const fromDate = new Date(changeTimeRange.from)
+        fromDate.setHours(0, 0, 0, 0)
+
+        if (rowDate < fromDate) return false
+
+        if (changeTimeRange.to) {
+          const toDate = new Date(changeTimeRange.to)
+          toDate.setHours(23, 59, 59, 999)
+          if (rowDate > toDate) return false
+        }
+      }
+
+      // Update Time filter
+      if (updateTimeRange?.from) {
+        const rowDate = new Date(row.updateTime)
+        const fromDate = new Date(updateTimeRange.from)
+        fromDate.setHours(0, 0, 0, 0)
+
+        if (rowDate < fromDate) return false
+
+        if (updateTimeRange.to) {
+          const toDate = new Date(updateTimeRange.to)
+          toDate.setHours(23, 59, 59, 999)
+          if (rowDate > toDate) return false
+        }
+      }
+
+      return true
+    })
+
+    // Sort by changeTime desc
+    result = result.sort((a, b) => {
+      return new Date(b.changeTime).getTime() - new Date(a.changeTime).getTime()
+    })
+
+    return result
+  }, [statusView, selectedFrus, fruNameSearch, selectedMts, selectedChangeTypes, changeTimeRange, updateTimeRange])
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [statusView, selectedFrus, fruNameSearch, selectedMts, selectedChangeTypes, changeTimeRange, updateTimeRange])
 
   // Pagination
-  const totalRows = allData.length
+  const totalRows = filteredData.length
   const totalPages = Math.ceil(totalRows / rowsPerPage)
   const startIndex = (currentPage - 1) * rowsPerPage
   const endIndex = Math.min(startIndex + rowsPerPage, totalRows)
-  const currentData = allData.slice(startIndex, endIndex)
+  const currentData = filteredData.slice(startIndex, endIndex)
 
   // Toggle column visibility
   const toggleColumnVisibility = (key: string) => {
-    setColumns(columns.map(col => 
+    setColumns(columns.map(col =>
       col.key === key ? { ...col, visible: !col.visible } : col
     ))
   }
 
+  // Handle drag end for column settings
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setColumns((items) => {
+        const oldIndex = items.findIndex((item) => item.key === active.id)
+        const newIndex = items.findIndex((item) => item.key === over.id)
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
+  }
+
+  // Handle drag end for table header (same logic, updates all columns order)
+  const handleTableDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setColumns((items) => {
+        const oldIndex = items.findIndex((item) => item.key === active.id)
+        const newIndex = items.findIndex((item) => item.key === over.id)
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
+  }
+
+  // Reset all filters
+  const resetFilters = () => {
+    setSelectedFrus([])
+    setFruNameSearch("")
+    setSelectedMts([])
+    setSelectedChangeTypes([])
+    setChangeTimeRange(undefined)
+    setUpdateTimeRange(undefined)
+  }
+
+  // Check if any filter is active
+  const hasActiveFilters = selectedFrus.length > 0 ||
+    fruNameSearch ||
+    selectedMts.length > 0 ||
+    selectedChangeTypes.length > 0 ||
+    changeTimeRange?.from ||
+    updateTimeRange?.from
+
+  // Check if expanded filters have values
+  const hasExpandedFilterValues = selectedMts.length > 0 || updateTimeRange?.from
+
   // Render cell content
   const renderCellContent = (row: MtFruData, key: string) => {
     switch (key) {
-      case "mt":
-        return <span className="text-sm font-medium text-primary font-mono">{row.mt}</span>
+      case "fru":
+        return <span className="text-sm font-medium text-primary font-mono">{row.fru}</span>
       case "fruName":
         return <span className="text-sm text-foreground">{row.fruName}</span>
-      case "ccType":
-        return <span className="text-sm text-foreground">{row.ccType}</span>
-      case "updateType":
+      case "commodityCode":
+        return <span className="text-sm text-muted-foreground font-mono">{row.commodityCode}</span>
+      case "basicName":
+        return <span className="text-sm text-foreground">{row.basicName}</span>
+      case "name":
+        return <span className="text-sm text-foreground font-medium">{row.name}</span>
+      case "description":
+        return <span className="text-sm text-muted-foreground truncate max-w-[200px]" title={row.description}>{row.description}</span>
+      case "mt":
+        return <span className="text-sm font-medium text-primary font-mono">{row.mt}</span>
+      case "productName":
+        return <span className="text-sm text-foreground">{row.productName}</span>
+      case "productType":
+        return <span className="text-sm text-foreground">{row.productType}</span>
+      case "brand":
+        return <span className="text-sm text-foreground">{row.brand}</span>
+      case "segment":
+        return <span className="text-sm text-foreground">{row.segment}</span>
+      case "series":
+        return <span className="text-sm text-foreground">{row.series}</span>
+      case "newRefresh":
         return (
           <span className={cn(
             "text-sm font-medium",
-            row.updateType === "New" ? "text-emerald-600" :
-            row.updateType === "Update" ? "text-blue-600" : "text-red-600"
+            row.newRefresh === "New" ? "text-emerald-600" : "text-blue-600"
           )}>
-            {row.updateType}
+            {row.newRefresh}
           </span>
         )
-      case "fru":
-        return <span className="text-sm text-muted-foreground font-mono">{row.fru}</span>
-      case "level":
-        return <span className="text-sm text-foreground">{row.level}</span>
-      case "lenovoPpn":
-        return <span className="text-sm text-muted-foreground font-mono">{row.lenovoPpn}</span>
-      case "vendorPpn":
-        return <span className="text-sm text-muted-foreground font-mono">{row.vendorPpn}</span>
-      case "substituteLenovoPpn":
-        return <span className="text-sm text-muted-foreground font-mono">{row.substituteLenovoPpn}</span>
-      case "lenovoPpnBasicName":
-        return <span className="text-sm text-foreground">{row.lenovoPpnBasicName}</span>
-      case "lenovoPpnName":
-        return <span className="text-sm text-foreground">{row.lenovoPpnName}</span>
-      case "lenovoPpnQty":
-        return <span className="text-sm text-foreground">{row.lenovoPpnQty}</span>
-      case "specCategory":
-        return <span className="text-sm text-foreground">{row.specCategory}</span>
-      case "specDescription":
-        return <span className="text-sm text-foreground">{row.specDescription}</span>
-      case "attributeValue":
-        return <span className="text-sm text-foreground">{row.attributeValue}</span>
-      case "ppnDesc":
-        return <span className="text-sm text-foreground">{row.ppnDesc}</span>
-      case "odmSupplierName":
-        return <span className="text-sm text-foreground">{row.odmSupplierName}</span>
-      case "commGroup":
-        return <span className="text-sm text-foreground">{row.commGroup}</span>
+      case "ss":
+        return <span className="text-sm text-muted-foreground font-mono">{row.ss}</span>
+      case "changeType":
+        return (
+          <span className={cn(
+            "text-sm font-medium",
+            row.changeType === "Add" ? "text-emerald-600" :
+            row.changeType === "Modify" ? "text-blue-600" : "text-red-600"
+          )}>
+            {row.changeType}
+          </span>
+        )
+      case "changeTime":
+        return <span className="text-sm text-muted-foreground">{row.changeTime}</span>
       default:
         return null
     }
@@ -432,155 +705,215 @@ export default function MtFruManagementPage() {
           </Tabs>
         </div>
 
-        {/* Search Panel */}
-        <div className="bg-white py-6 shrink-0">
-          <div className="flex items-center gap-3">
-            {/* Filters - 横向排列的输入框 */}
-            <div className="relative w-[200px]">
+        {/* Filter Panel */}
+        <div className="bg-white py-4 shrink-0 space-y-3">
+          {/* Default Filters - Always Visible (4 items) */}
+          <div className="flex items-start gap-3">
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* FRU - Tags Input */}
+              <TagsInput
+                values={selectedFrus}
+                onChange={setSelectedFrus}
+                placeholder="FRU"
+              />
+
+              {/* FRU Name - Fuzzy Search */}
               <Input
-                placeholder="MT"
-                className="h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary"
+                placeholder="FRU Name"
+                value={fruNameSearch}
+                onChange={(e) => setFruNameSearch(e.target.value)}
+                className="h-10"
+              />
+
+              {/* Change Type - MultiSelect */}
+              <MultiSelect
+                options={changeTypeOptions}
+                selected={selectedChangeTypes}
+                onChange={setSelectedChangeTypes}
+                placeholder="Change Type"
+                searchPlaceholder="Search..."
+              />
+
+              {/* Change Time - Date Range */}
+              <DateRangePicker
+                value={changeTimeRange}
+                onChange={setChangeTimeRange}
+                placeholder="Change Time"
               />
             </div>
 
-            <div className="relative w-[200px]">
-              <Input
-                placeholder="Fru Name"
-                className="h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary"
-              />
-            </div>
-
-            <div className="relative w-[200px]">
-              <Select>
-                <SelectTrigger className="h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:ring-primary focus:border-primary [&>span]:text-muted-foreground data-[state=open]:ring-primary data-[state=open]:border-primary">
-                  <SelectValue placeholder="CC Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="type-a">Type A</SelectItem>
-                  <SelectItem value="type-b">Type B</SelectItem>
-                  <SelectItem value="type-c">Type C</SelectItem>
-                  <SelectItem value="type-d">Type D</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="relative w-[200px]">
-              <Select>
-                <SelectTrigger className="h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:ring-primary focus:border-primary [&>span]:text-muted-foreground data-[state=open]:ring-primary data-[state=open]:border-primary">
-                  <SelectValue placeholder="Update Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="update">Update</SelectItem>
-                  <SelectItem value="delete">Delete</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button variant="ghost" size="icon" className="h-10 w-10">
-              <RotateCcw className="h-4 w-4" />
+            {/* Expand/Collapse Button */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className={cn(
+                "h-10 w-10 shrink-0 transition-colors",
+                (filtersOpen || hasExpandedFilterValues) && "bg-muted"
+              )}
+            >
+              <ChevronDown className={cn(
+                "h-4 w-4 transition-transform duration-200",
+                filtersOpen && "rotate-180"
+              )} />
             </Button>
 
-            <div className="flex-1" />
+            {/* Reset Button */}
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={resetFilters}
+                className="h-10 w-10 shrink-0 text-muted-foreground"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            )}
 
             {/* Column Settings */}
             <Popover>
               <PopoverTrigger>
-                <Button variant="ghost" size="icon" className="h-10 w-10">
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
                   <Settings className="h-4 w-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-56 p-3" align="end">
-                <div className="space-y-2">
+              <PopoverContent className="w-64 p-3" align="end">
+                <div className="space-y-3">
                   <p className="text-sm font-medium">Column Settings</p>
-                  <div className="space-y-1">
-                    {columns.map((col) => (
-                      <label
-                        key={col.key}
-                        className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={col.visible}
-                          onCheckedChange={() => toggleColumnVisibility(col.key)}
-                        />
-                        <span className="text-sm">{col.label}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <p className="text-xs text-muted-foreground">Drag to reorder columns</p>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={columns.map(col => col.key)}
+                      strategy={horizontalListSortingStrategy}
+                    >
+                      <div className="space-y-1">
+                        {columns.map((col) => (
+                          <SortableHeader
+                            key={col.key}
+                            column={col}
+                            onToggleVisibility={toggleColumnVisibility}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 </div>
               </PopoverContent>
             </Popover>
           </div>
+
+          {/* Expanded Filters */}
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleContent>
+              <div className="flex items-start gap-3 pt-2">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* MT - Tags Input */}
+                  <TagsInput
+                    values={selectedMts}
+                    onChange={setSelectedMts}
+                    placeholder="MT"
+                  />
+
+                  {/* Update Time - Date Range */}
+                  <DateRangePicker
+                    value={updateTimeRange}
+                    onChange={setUpdateTimeRange}
+                    placeholder="Update Time"
+                  />
+
+                  {/* Data Filtering - Status Select */}
+                  <Select value={statusView} onValueChange={(v) => setStatusView(v as "current" | "all")}>
+                    <SelectTrigger className="!w-full !h-10 rounded-md border border-input bg-background px-3 text-sm">
+                      <SelectValue>
+                        {statusView === "current" ? "Current Status" : "All History"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="current">Current Status</SelectItem>
+                      <SelectItem value="all">All History</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* Spacer for alignment */}
+                <div className="h-10 w-10 shrink-0" />
+                {hasActiveFilters && <div className="h-10 w-10 shrink-0" />}
+                <div className="h-10 w-10 shrink-0" />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
         {/* Table Container */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Table - 增加border、rounded-2xl、overflow-hidden */}
+          {/* Table */}
           <div className="flex-1 border border-border rounded-2xl overflow-hidden">
             <div className="h-full overflow-auto">
               <div className="min-w-max">
-                {/* Table Header */}
-                <div className="flex bg-muted border-b sticky top-0 z-10">
-                  {/* Frozen MT Column Header */}
-                  <div className="sticky left-0 z-20 bg-muted border-r shrink-0">
-                    <div className="flex items-center h-10 px-4" style={{ width: 100 }}>
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        MT
-                      </span>
+                {/* Table Header - with drag and drop */}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleTableDragEnd}
+                >
+                  <SortableContext
+                    items={visibleColumns.map(col => col.key)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <div className="flex bg-muted border-b sticky top-0 z-10">
+                      {visibleColumns.map((col, index) => (
+                        <SortableTableHeader
+                          key={col.key}
+                          column={col}
+                          isFirst={index === 0}
+                        />
+                      ))}
                     </div>
-                  </div>
-
-                  {/* Scrollable Column Headers */}
-                  <div className="flex">
-                    {visibleColumns.filter(col => col.key !== "mt").map((col) => (
-                      <div
-                        key={col.key}
-                        className="flex items-center h-10 px-4 border-r shrink-0"
-                        style={{ width: col.width }}
-                      >
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                          {col.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  </SortableContext>
+                </DndContext>
 
                 {/* Table Body */}
                 <div>
-                  {currentData.map((row, index) => (
-                    <div
-                      key={row.id}
-                      className={cn(
-                        "flex border-b hover:bg-muted/50 transition-colors",
-                        index % 2 === 0 ? "bg-background" : "bg-muted/20"
-                      )}
-                    >
-                      {/* Frozen MT Column */}
-                      <div className="sticky left-0 z-10 bg-background border-r shrink-0">
-                        <div className="flex items-center h-12 px-4" style={{ width: 100 }}>
-                          <span className="text-sm font-medium text-primary font-mono">
-                            {row.mt}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Scrollable Columns */}
-                      <div className="flex">
-                        {visibleColumns.filter(col => col.key !== "mt").map((col) => (
+                  {currentData.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                      <Filter className="h-12 w-12 mb-4 opacity-30" />
+                      <p className="text-sm">No data matching the filters</p>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={resetFilters}
+                        className="mt-2"
+                      >
+                        Clear all filters
+                      </Button>
+                    </div>
+                  ) : (
+                    currentData.map((row, index) => (
+                      <div
+                        key={row.id}
+                        className={cn(
+                          "flex border-b hover:bg-muted/50 transition-colors",
+                          index % 2 === 0 ? "bg-background" : "bg-muted/20"
+                        )}
+                      >
+                        {visibleColumns.map((col, colIndex) => (
                           <div
                             key={col.key}
-                            className="flex items-center h-12 px-4 border-r shrink-0"
+                            className={cn(
+                              "flex items-center h-12 px-4 border-r shrink-0",
+                              colIndex === 0 && "sticky left-0 z-10 bg-background"
+                            )}
                             style={{ width: col.width }}
                           >
                             {renderCellContent(row, col.key)}
                           </div>
                         ))}
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>

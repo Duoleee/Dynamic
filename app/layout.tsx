@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { NotificationProvider } from "@/contexts/notification-context"
 import { cn } from "@/lib/utils";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'})
@@ -26,7 +27,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-background">
         <ThemeProvider>
           <TooltipProvider>
-            {children}
+            <NotificationProvider>
+              {children}
+            </NotificationProvider>
           </TooltipProvider>
         </ThemeProvider>
       </body>

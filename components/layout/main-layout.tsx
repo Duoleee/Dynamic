@@ -5,10 +5,14 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "./app-sidebar"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { LogOut } from "lucide-react"
-import { usePathname } from "next/navigation"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { NotificationPopover } from "@/components/notification/notification-popover"
+import { Toaster } from "@/components/ui/sonner"
+import { LogOut, User, Sun, Moon } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
 import React from "react"
+import { useTheme } from "next-themes"
+import { Button } from "@/components/ui/button"
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -54,9 +58,36 @@ function generateBreadcrumbs(pathname: string): { label: string; href?: string }
   return breadcrumbs
 }
 
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme()
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      className="h-9 w-9"
+    >
+      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+      <span className="sr-only">Toggle theme</span>
+    </Button>
+  )
+}
+
 export function MainLayout({ children, className, title, breadcrumbs: customBreadcrumbs }: MainLayoutProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const breadcrumbs = customBreadcrumbs || generateBreadcrumbs(pathname)
+
+  const handleLogout = () => {
+    // TODO: Add actual logout API call here
+    router.push("/login")
+  }
+
+  const handleProfile = () => {
+    router.push("/profile")
+  }
 
   return (
     <SidebarProvider>
@@ -84,28 +115,41 @@ export function MainLayout({ children, className, title, breadcrumbs: customBrea
             </BreadcrumbList>
           </Breadcrumb>
           <div className="flex-1" />
+          <NotificationPopover />
+          <ThemeToggle />
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-3 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors">
-              <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src="/avatar.png" alt="User" />
-                <AvatarFallback className="rounded-lg bg-primary/10 text-primary text-sm">
-                  管
-                </AvatarFallback>
-              </Avatar>
-              <div className="hidden md:grid text-left text-sm leading-tight">
-                <span className="truncate font-semibold">管理员</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  admin@lenovo.com
-                </span>
-              </div>
-            </DropdownMenuTrigger>
+            <DropdownMenuTrigger
+              render={
+                <button className="flex items-center gap-3 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors outline-none">
+                  <Avatar className="h-8 w-8 rounded-lg">
+                    <AvatarImage src="/avatar.png" alt="User" />
+                    <AvatarFallback className="rounded-lg bg-primary/10 text-primary text-sm">
+                      管
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="hidden md:grid text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">管理员</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      admin@lenovo.com
+                    </span>
+                  </div>
+                </button>
+              }
+            />
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>我的账户</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
-                <LogOut className="mr-2 size-4" />
-                <span>退出登录</span>
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleProfile}>
+                  <User className="mr-2 size-4" />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} variant="destructive">
+                  <LogOut className="mr-2 size-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
@@ -114,6 +158,7 @@ export function MainLayout({ children, className, title, breadcrumbs: customBrea
         <main className={cn("flex-1 overflow-hidden bg-background", className)}>
           {children}
         </main>
+        <Toaster position="top-center" />
       </SidebarInset>
     </SidebarProvider>
   )

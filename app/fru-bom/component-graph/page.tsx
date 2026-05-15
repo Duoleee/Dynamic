@@ -53,6 +53,9 @@ interface GraphNode {
   children?: string[]
   substitutes?: string[]
   isExpanded?: boolean
+  level?: string  // L1, L2, L3, L4
+  vendors?: string[]  // 关联的 Vendor PPN IDs
+  showAllSubstitutes?: boolean  // 是否显示所有替换节点
 }
 
 interface GraphEdge {
@@ -67,189 +70,243 @@ let allNodes: Map<string, GraphNode> = new Map()
 let visibleNodeIds: Set<string> = new Set()
 let mockEdges: GraphEdge[] = []
 
-// Generate mock data with Horizontal Multi-Stage Flow layout
+// Generate mock data with Level-based layout
 const generateMockData = (searchId: string, searchType: SearchType) => {
   allNodes = new Map()
   
-  // 布局配置 - 增加间距
-  const COLUMN_X = {
-    FRU: 80,           // 左侧：FRU域
-    LENOVO_PPN: 420,   // 中间：Lenovo PPN域 (增加间距)
-    VENDOR_PPN: 780,   // 右侧：Vendor PPN域 (增加间距)
+  // 布局配置 - 水平间距100px，替换节点与父节点间距100px
+  const CONFIG = {
+    nodeWidth: 140,
+    nodeHeight: 60,
+    substituteWidth: 120,
+    substituteHeight: 50,
+    vendorWidth: 120,
+    vendorHeight: 50,
+    gapX: 100,          // 水平间距100px
+    gapY: 120,          // 垂直间距120px（确保展开替换节点不覆盖）
+    substituteGapX: 100,// 替换节点与父节点水平间距100px
+    substituteGapY: 70, // 替换节点垂直间距70px
+    vendorGapY: 80,     // Vendor节点垂直间距80px
+    startX: 350,        // 起始X位置（给左侧替换节点留足够空间）
+    startY: 100,        // 起始Y位置
   }
   
-  const nodeHeightMap: Record<string, number> = {
-    "fru": 80,
-    "fru-substitute": 64,
-    "lenovo-ppn": 72,
-    "lenovo-ppn-substitute": 60,
-    "vendor-ppn": 64,
-    "ineffective": 60,
-  }
+  // ==================== L1 Level - FRU和L1在同一行 ====================
+  const l1Y = CONFIG.startY
   
-  const verticalGap = 40      // 增加垂直间距
-  const groupGap = 60         // 组间距
-  
-  // ==================== 左侧：FRU域 (FRU Domain) ====================
-  // 主FRU节点
+  // FRU 节点（与L1同行）
   const mainFru: GraphNode = { 
     id: "FRU-MAIN", 
     name: "FRU-001", 
     type: "fru", 
-    x: COLUMN_X.FRU, 
-    y: 140,
+    x: CONFIG.startX, 
+    y: l1Y,
     isExpanded: true,
-    children: ["LEN-001", "LEN-002", "LEN-003"],
-    substitutes: ["FRU-SUB-1", "FRU-SUB-2", "FRU-SUB-3"]
+    showAllSubstitutes: false,
+    substitutes: ["FRU-SUB-1", "FRU-SUB-2", "FRU-SUB-3", "FRU-SUB-4", "FRU-SUB-5"]
   }
   allNodes.set(mainFru.id, mainFru)
   
-  // FRU Substitutes - 纵向嵌套在主FRU下方，向右移动，增加垂直间距，类型都是fru
+  // FRU 替换节点（放在左侧，垂直分布，与父节点间距100px）
   const fruSubstitutes: GraphNode[] = [
-    { id: "FRU-SUB-1", name: "FRU-002", type: "fru", x: COLUMN_X.FRU + 120, y: 280, status: "topmost", parentId: "FRU-MAIN" },
-    { id: "FRU-SUB-2", name: "FRU-003", type: "fru", x: COLUMN_X.FRU + 120, y: 420, status: "default", parentId: "FRU-MAIN" },
-    { id: "FRU-SUB-3", name: "FRU-004", type: "fru", x: COLUMN_X.FRU + 120, y: 560, status: "ineffective", parentId: "FRU-MAIN", deleteTime: "2024/11/02" },
+    { id: "FRU-SUB-1", name: "FRU-002", type: "fru-substitute", x: CONFIG.startX - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l1Y - 70, status: "topmost", parentId: "FRU-MAIN" },
+    { id: "FRU-SUB-2", name: "FRU-003", type: "fru-substitute", x: CONFIG.startX - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l1Y, status: "default", parentId: "FRU-MAIN" },
+    { id: "FRU-SUB-3", name: "FRU-004", type: "fru-substitute", x: CONFIG.startX - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l1Y + 70, status: "default", parentId: "FRU-MAIN" },
+    { id: "FRU-SUB-4", name: "FRU-005", type: "fru-substitute", x: CONFIG.startX - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l1Y + 140, status: "ineffective", parentId: "FRU-MAIN", deleteTime: "2024/11/02" },
+    { id: "FRU-SUB-5", name: "FRU-006", type: "fru-substitute", x: CONFIG.startX - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l1Y + 210, status: "default", parentId: "FRU-MAIN" },
   ]
   fruSubstitutes.forEach(n => allNodes.set(n.id, n))
   
-  // ==================== 中间：Lenovo PPN域 (Internal Part Domain) ====================
-  // L1, L2, L3 层级演进，增加间距
-  const lenovoNodes: GraphNode[] = []
-  const lenovoSubstitutes: GraphNode[] = []
-  
-  // L1 Level - Lenovo PPN 1
-  lenovoNodes.push({ 
-    id: "LEN-001", 
-    name: "LPN-2024001", 
+  // L1 Lenovo PPN 节点（与FRU同行，在FRU右侧，间距100px）
+  const lenovoL1: GraphNode = { 
+    id: "LEN-L1-001", 
+    name: "LPN-L1-001", 
     type: "lenovo-ppn", 
-    x: COLUMN_X.LENOVO_PPN, 
-    y: 100, 
+    x: CONFIG.startX + CONFIG.nodeWidth + CONFIG.gapX, 
+    y: l1Y, 
+    level: "L1",
     parentId: "FRU-MAIN",
     isExpanded: true,
-    children: ["VEN-001", "VEN-002"],
-    substitutes: ["LEN-SUB-1"]
-  })
-  // L1 Substitute
-  lenovoSubstitutes.push({ 
-    id: "LEN-SUB-1", 
-    name: "LPN-2024002", 
-    type: "lenovo-ppn-substitute", 
-    x: COLUMN_X.LENOVO_PPN + 120, 
-    y: 240, 
-    status: "default", 
-    parentId: "LEN-001" 
-  })
+    showAllSubstitutes: false,
+    substitutes: ["LEN-L1-SUB-1", "LEN-L1-SUB-2", "LEN-L1-SUB-3", "LEN-L1-SUB-4"],
+    vendors: ["VEN-L1-001", "VEN-L1-002"]
+  }
+  allNodes.set(lenovoL1.id, lenovoL1)
   
-  // L2 Level - Lenovo PPN 2
-  lenovoNodes.push({ 
-    id: "LEN-002", 
-    name: "LPN-2024003", 
-    type: "lenovo-ppn", 
-    x: COLUMN_X.LENOVO_PPN, 
-    y: 320, 
-    parentId: "FRU-MAIN",
-    isExpanded: true,
-    children: ["VEN-003"],
-    substitutes: ["LEN-SUB-2"]
-  })
-  // L2 Substitute
-  lenovoSubstitutes.push({ 
-    id: "LEN-SUB-2", 
-    name: "LPN-2024004", 
-    type: "lenovo-ppn-substitute", 
-    x: COLUMN_X.LENOVO_PPN + 120, 
-    y: 480, 
-    status: "default", 
-    parentId: "LEN-002" 
-  })
-  
-  // L3 Level - Lenovo PPN 3
-  lenovoNodes.push({ 
-    id: "LEN-003", 
-    name: "LPN-2024005", 
-    type: "lenovo-ppn", 
-    x: COLUMN_X.LENOVO_PPN, 
-    y: 540, 
-    parentId: "FRU-MAIN",
-    isExpanded: true,
-    children: ["VEN-004", "VEN-005"],
-    substitutes: []
-  })
-  
-  lenovoNodes.forEach(n => allNodes.set(n.id, n))
-  lenovoSubstitutes.forEach(n => allNodes.set(n.id, n))
-  
-  // ==================== 右侧：Vendor PPN域 (External Vendor Domain) ====================
-  // 多对多映射：一个Lenovo PPN对应多个Vendor PPN，增加间距
-  const vendorNodes: GraphNode[] = [
-    // LEN-001 对应多个 Vendor
-    { id: "VEN-001", name: "VPN-ABC001", type: "vendor-ppn", x: COLUMN_X.VENDOR_PPN, y: 80, parentId: "LEN-001" },
-    { id: "VEN-002", name: "VPN-ABC002", type: "vendor-ppn", x: COLUMN_X.VENDOR_PPN, y: 180, parentId: "LEN-001" },
-    // LEN-002 对应一个 Vendor
-    { id: "VEN-003", name: "VPN-XYZ001", type: "vendor-ppn", x: COLUMN_X.VENDOR_PPN, y: 324, parentId: "LEN-002" },
-    // LEN-003 对应多个 Vendor
-    { id: "VEN-004", name: "VPN-DEF001", type: "vendor-ppn", x: COLUMN_X.VENDOR_PPN, y: 520, parentId: "LEN-003" },
-    { id: "VEN-005", name: "VPN-DEF002", type: "vendor-ppn", x: COLUMN_X.VENDOR_PPN, y: 620, parentId: "LEN-003" },
+  // L1 替换节点（左侧，垂直分布，与父节点间距100px）
+  const l1Substitutes: GraphNode[] = [
+    { id: "LEN-L1-SUB-1", name: "LPN-L1-002", type: "lenovo-ppn-substitute", x: lenovoL1.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l1Y - 70, status: "default", parentId: "LEN-L1-001", level: "L1" },
+    { id: "LEN-L1-SUB-2", name: "LPN-L1-003", type: "lenovo-ppn-substitute", x: lenovoL1.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l1Y, status: "topmost", parentId: "LEN-L1-001", level: "L1" },
+    { id: "LEN-L1-SUB-3", name: "LPN-L1-004", type: "lenovo-ppn-substitute", x: lenovoL1.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l1Y + 70, status: "default", parentId: "LEN-L1-001", level: "L1" },
+    { id: "LEN-L1-SUB-4", name: "LPN-L1-005", type: "lenovo-ppn-substitute", x: lenovoL1.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l1Y + 140, status: "ineffective", parentId: "LEN-L1-001", level: "L1", deleteTime: "2024/10/15" },
   ]
-  vendorNodes.forEach(n => allNodes.set(n.id, n))
+  l1Substitutes.forEach(n => allNodes.set(n.id, n))
   
-  // Initialize visible nodes
+  // L1 Vendor 节点（右侧，垂直分布，间距100px）
+  const l1Vendors: GraphNode[] = [
+    { id: "VEN-L1-001", name: "VPN-L1-001", type: "vendor-ppn", x: lenovoL1.x + CONFIG.nodeWidth + CONFIG.gapX, y: l1Y - 40, parentId: "LEN-L1-001", level: "L1" },
+    { id: "VEN-L1-002", name: "VPN-L1-002", type: "vendor-ppn", x: lenovoL1.x + CONFIG.nodeWidth + CONFIG.gapX, y: l1Y + 40, parentId: "LEN-L1-001", level: "L1" },
+  ]
+  l1Vendors.forEach(n => allNodes.set(n.id, n))
+  
+  // ==================== L2 Level ====================
+  // 计算L2的Y位置：确保展开L1的替换节点时不覆盖L2
+  // L1有5个替换节点，展开时高度约 5 * 70 = 350px，加上间距
+  const l2Y = l1Y + CONFIG.nodeHeight + CONFIG.gapY + 100
+  const lenovoL2: GraphNode = { 
+    id: "LEN-L2-001", 
+    name: "LPN-L2-001", 
+    type: "lenovo-ppn", 
+    x: CONFIG.startX + CONFIG.nodeWidth + CONFIG.gapX, 
+    y: l2Y, 
+    level: "L2",
+    parentId: "FRU-MAIN",
+    isExpanded: true,
+    showAllSubstitutes: false,
+    substitutes: ["LEN-L2-SUB-1", "LEN-L2-SUB-2"],
+    vendors: ["VEN-L2-001"]
+  }
+  allNodes.set(lenovoL2.id, lenovoL2)
+  
+  // L2 替换节点（左侧，与父节点间距100px）
+  const l2Substitutes: GraphNode[] = [
+    { id: "LEN-L2-SUB-1", name: "LPN-L2-002", type: "lenovo-ppn-substitute", x: lenovoL2.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l2Y - 35, status: "default", parentId: "LEN-L2-001", level: "L2" },
+    { id: "LEN-L2-SUB-2", name: "LPN-L2-003", type: "lenovo-ppn-substitute", x: lenovoL2.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l2Y + 35, status: "default", parentId: "LEN-L2-001", level: "L2" },
+  ]
+  l2Substitutes.forEach(n => allNodes.set(n.id, n))
+  
+  // L2 Vendor
+  const l2Vendors: GraphNode[] = [
+    { id: "VEN-L2-001", name: "VPN-L2-001", type: "vendor-ppn", x: lenovoL2.x + CONFIG.nodeWidth + CONFIG.gapX, y: l2Y, parentId: "LEN-L2-001", level: "L2" },
+  ]
+  l2Vendors.forEach(n => allNodes.set(n.id, n))
+  
+  // ==================== L3 Level ====================
+  const l3Y = l2Y + CONFIG.nodeHeight + CONFIG.gapY
+  const lenovoL3: GraphNode = { 
+    id: "LEN-L3-001", 
+    name: "LPN-L3-001", 
+    type: "lenovo-ppn", 
+    x: CONFIG.startX + CONFIG.nodeWidth + CONFIG.gapX, 
+    y: l3Y, 
+    level: "L3",
+    parentId: "FRU-MAIN",
+    isExpanded: true,
+    showAllSubstitutes: false,
+    substitutes: ["LEN-L3-SUB-1", "LEN-L3-SUB-2", "LEN-L3-SUB-3"],
+    vendors: ["VEN-L3-001", "VEN-L3-002", "VEN-L3-003"]
+  }
+  allNodes.set(lenovoL3.id, lenovoL3)
+  
+  // L3 替换节点（左侧，与父节点间距100px）
+  const l3Substitutes: GraphNode[] = [
+    { id: "LEN-L3-SUB-1", name: "LPN-L3-002", type: "lenovo-ppn-substitute", x: lenovoL3.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l3Y - 70, status: "default", parentId: "LEN-L3-001", level: "L3" },
+    { id: "LEN-L3-SUB-2", name: "LPN-L3-003", type: "lenovo-ppn-substitute", x: lenovoL3.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l3Y, status: "topmost", parentId: "LEN-L3-001", level: "L3" },
+    { id: "LEN-L3-SUB-3", name: "LPN-L3-004", type: "lenovo-ppn-substitute", x: lenovoL3.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l3Y + 70, status: "default", parentId: "LEN-L3-001", level: "L3" },
+  ]
+  l3Substitutes.forEach(n => allNodes.set(n.id, n))
+  
+  // L3 Vendors
+  const l3Vendors: GraphNode[] = [
+    { id: "VEN-L3-001", name: "VPN-L3-001", type: "vendor-ppn", x: lenovoL3.x + CONFIG.nodeWidth + CONFIG.gapX, y: l3Y - 80, parentId: "LEN-L3-001", level: "L3" },
+    { id: "VEN-L3-002", name: "VPN-L3-002", type: "vendor-ppn", x: lenovoL3.x + CONFIG.nodeWidth + CONFIG.gapX, y: l3Y, parentId: "LEN-L3-001", level: "L3" },
+    { id: "VEN-L3-003", name: "VPN-L3-003", type: "vendor-ppn", x: lenovoL3.x + CONFIG.nodeWidth + CONFIG.gapX, y: l3Y + 80, parentId: "LEN-L3-001", level: "L3" },
+  ]
+  l3Vendors.forEach(n => allNodes.set(n.id, n))
+  
+  // ==================== L4 Level ====================
+  const l4Y = l3Y + CONFIG.nodeHeight + CONFIG.gapY
+  const lenovoL4: GraphNode = { 
+    id: "LEN-L4-001", 
+    name: "LPN-L4-001", 
+    type: "lenovo-ppn", 
+    x: CONFIG.startX + CONFIG.nodeWidth + CONFIG.gapX, 
+    y: l4Y, 
+    level: "L4",
+    parentId: "FRU-MAIN",
+    isExpanded: false,
+    showAllSubstitutes: false,
+    substitutes: ["LEN-L4-SUB-1"],
+    vendors: ["VEN-L4-001"]
+  }
+  allNodes.set(lenovoL4.id, lenovoL4)
+  
+  // L4 替换节点（与父节点间距100px）
+  const l4Substitutes: GraphNode[] = [
+    { id: "LEN-L4-SUB-1", name: "LPN-L4-002", type: "lenovo-ppn-substitute", x: lenovoL4.x - CONFIG.substituteWidth - CONFIG.substituteGapX, y: l4Y, status: "default", parentId: "LEN-L4-001", level: "L4" },
+  ]
+  l4Substitutes.forEach(n => allNodes.set(n.id, n))
+  
+  // L4 Vendor
+  const l4Vendors: GraphNode[] = [
+    { id: "VEN-L4-001", name: "VPN-L4-001", type: "vendor-ppn", x: lenovoL4.x + CONFIG.nodeWidth + CONFIG.gapX, y: l4Y, parentId: "LEN-L4-001", level: "L4" },
+  ]
+  l4Vendors.forEach(n => allNodes.set(n.id, n))
+  
+  // ==================== 初始化可见节点 ====================
   visibleNodeIds = new Set(["FRU-MAIN"])
   
-  // Add FRU substitutes if expanded
-  if (mainFru.isExpanded) {
-    mainFru.substitutes?.forEach(id => visibleNodeIds.add(id))
+  // 添加 FRU 替换节点（默认显示前3个）
+  if (mainFru.isExpanded && mainFru.substitutes) {
+    const visibleCount = mainFru.showAllSubstitutes ? mainFru.substitutes.length : Math.min(3, mainFru.substitutes.length)
+    for (let i = 0; i < visibleCount; i++) {
+      visibleNodeIds.add(mainFru.substitutes[i])
+    }
   }
   
-  // Add Lenovo PPN nodes
-  mainFru.children?.forEach(id => {
-    visibleNodeIds.add(id)
-    const lenovoNode = allNodes.get(id)
-    if (lenovoNode?.isExpanded) {
-      // Add Vendor PPN children
-      lenovoNode.children?.forEach(childId => visibleNodeIds.add(childId))
-      // Add Lenovo PPN substitutes
-      lenovoNode.substitutes?.forEach(subId => visibleNodeIds.add(subId))
+  // 添加 Lenovo PPN 节点及其替换节点和 Vendors
+  const lenovoNodes = [lenovoL1, lenovoL2, lenovoL3, lenovoL4]
+  lenovoNodes.forEach(node => {
+    visibleNodeIds.add(node.id)
+    
+    // 添加替换节点（默认显示前3个）
+    if (node.isExpanded && node.substitutes) {
+      const visibleCount = node.showAllSubstitutes ? node.substitutes.length : Math.min(3, node.substitutes.length)
+      for (let i = 0; i < visibleCount; i++) {
+        visibleNodeIds.add(node.substitutes[i])
+      }
+    }
+    
+    // 添加 Vendor 节点
+    if (node.vendors) {
+      node.vendors.forEach(vendorId => visibleNodeIds.add(vendorId))
     }
   })
   
-  // Create edges
+  // ==================== 创建连接线 ====================
   mockEdges = []
   
-  // FRU to Lenovo PPN
-  mainFru.children?.forEach(childId => {
-    mockEdges.push({ from: "FRU-MAIN", to: childId, type: "hierarchy" })
-  })
-  
-  // FRU directly to Vendor PPN (跨级连接)
-  vendorNodes.forEach(vendor => {
-    mockEdges.push({ from: "FRU-MAIN", to: vendor.id, type: "hierarchy" })
-  })
-  
-  // Lenovo PPN to Vendor PPN
+  // FRU 到 Lenovo PPN
   lenovoNodes.forEach(node => {
-    node.children?.forEach(childId => {
-      mockEdges.push({ from: node.id, to: childId, type: "hierarchy" })
-    })
+    mockEdges.push({ from: "FRU-MAIN", to: node.id, type: "hierarchy" })
   })
   
-  // Substitute relationships (visible only when expanded) - 带标签
-  if (mainFru.isExpanded) {
-    mainFru.substitutes?.forEach((subId, index) => {
-      const subNode = allNodes.get(subId)
-      let label = "Equivalent"
-      if (subNode?.status === "ineffective") label = "Soft"
-      mockEdges.push({ from: "FRU-MAIN", to: subId, type: "substitute", label })
-    })
+  // FRU 到替换节点
+  if (mainFru.isExpanded && mainFru.substitutes) {
+    const visibleCount = mainFru.showAllSubstitutes ? mainFru.substitutes.length : Math.min(3, mainFru.substitutes.length)
+    for (let i = 0; i < visibleCount; i++) {
+      mockEdges.push({ from: "FRU-MAIN", to: mainFru.substitutes[i], type: "substitute", label: "Equivalent" })
+    }
   }
   
+  // Lenovo PPN 到替换节点和 Vendors
   lenovoNodes.forEach(node => {
-    if (node.isExpanded) {
-      node.substitutes?.forEach(subId => {
+    // 替换节点
+    if (node.isExpanded && node.substitutes) {
+      const visibleCount = node.showAllSubstitutes ? node.substitutes.length : Math.min(3, node.substitutes.length)
+      for (let i = 0; i < visibleCount; i++) {
+        const subId = node.substitutes[i]
         const subNode = allNodes.get(subId)
         let label = "Equivalent"
         if (subNode?.status === "ineffective") label = "Soft"
         mockEdges.push({ from: node.id, to: subId, type: "substitute", label })
+      }
+    }
+    
+    // Vendors
+    if (node.vendors) {
+      node.vendors.forEach(vendorId => {
+        mockEdges.push({ from: node.id, to: vendorId, type: "hierarchy" })
       })
     }
   })
@@ -258,11 +315,11 @@ const generateMockData = (searchId: string, searchType: SearchType) => {
 }
 
 const mockSearchResults = [
-  { id: "FRU-001", type: "fru" as SearchType, name: "FRU-001", description: "Main FRU component" },
-  { id: "FRU-002", type: "fru" as SearchType, name: "FRU-002", description: "Alternative FRU" },
-  { id: "LPN-2024001", type: "lenovo-ppn" as SearchType, name: "LPN-2024001", description: "Lenovo PPN component" },
-  { id: "LPN-2024003", type: "lenovo-ppn" as SearchType, name: "LPN-2024003", description: "Lenovo PPN component" },
-  { id: "VPN-ABC001", type: "vendor-ppn" as SearchType, name: "VPN-ABC001", description: "Vendor PPN component" },
+  { id: "FRU-MAIN", type: "fru" as SearchType, name: "FRU-001", description: "Main FRU component" },
+  { id: "FRU-SUB-1", type: "fru" as SearchType, name: "FRU-002", description: "Alternative FRU" },
+  { id: "LEN-L1-001", type: "lenovo-ppn" as SearchType, name: "LPN-L1-001", description: "Lenovo PPN L1" },
+  { id: "LEN-L2-001", type: "lenovo-ppn" as SearchType, name: "LPN-L2-001", description: "Lenovo PPN L2" },
+  { id: "VEN-L1-001", type: "vendor-ppn" as SearchType, name: "VPN-L1-001", description: "Vendor PPN" },
 ]
 
 // Node configuration
@@ -278,62 +335,62 @@ const nodeConfig: Record<NodeType, {
 }> = {
   "fru": { 
     label: "FRU", 
-    bgColor: "bg-[#1D4ED8]",
-    borderColor: "border-[#1E40AF]",
-    textColor: "text-white",
-    shadow: "shadow-lg shadow-blue-900/30",
-    width: 200,
-    height: 72,
+    bgColor: "bg-primary",
+    borderColor: "border-primary",
+    textColor: "text-primary-foreground",
+    shadow: "shadow-lg shadow-primary/30",
+    width: 140,
+    height: 60,
     fontSize: "text-sm",
   },
   "fru-substitute": { 
     label: "FRU", 
-    bgColor: "bg-[#1D4ED8]",
-    borderColor: "border-[#1E40AF]",
-    textColor: "text-white",
-    shadow: "shadow-md shadow-blue-900/20",
-    width: 180,
-    height: 56,
+    bgColor: "bg-primary",
+    borderColor: "border-primary",
+    textColor: "text-primary-foreground",
+    shadow: "shadow-md shadow-primary/20",
+    width: 120,
+    height: 50,
     fontSize: "text-xs",
   },
   "lenovo-ppn": { 
     label: "Lenovo PPN", 
-    bgColor: "bg-[#DBEAFE]",
-    borderColor: "border-[#3B82F6]",
-    textColor: "text-[#1E40AF]",
-    shadow: "shadow-md shadow-blue-500/10",
-    width: 200,
-    height: 64,
+    bgColor: "bg-secondary",
+    borderColor: "border-primary",
+    textColor: "text-primary",
+    shadow: "shadow-md shadow-primary/10",
+    width: 140,
+    height: 60,
     fontSize: "text-sm",
   },
   "lenovo-ppn-substitute": { 
     label: "Lenovo PPN", 
-    bgColor: "bg-[#DBEAFE]",
-    borderColor: "border-[#3B82F6]",
-    textColor: "text-[#1E40AF]",
+    bgColor: "bg-secondary",
+    borderColor: "border-primary",
+    textColor: "text-primary",
     shadow: "shadow-sm",
-    width: 180,
-    height: 52,
+    width: 120,
+    height: 50,
     fontSize: "text-xs",
   },
   "vendor-ppn": { 
     label: "Vendor PPN", 
-    bgColor: "bg-white",
-    borderColor: "border-[#3B82F6]",
-    textColor: "text-[#1E40AF]",
+    bgColor: "bg-card",
+    borderColor: "border-primary",
+    textColor: "text-primary",
     shadow: "shadow-sm",
-    width: 200,
-    height: 56,
+    width: 120,
+    height: 50,
     fontSize: "text-xs",
   },
   "ineffective": { 
     label: "Ineffective", 
-    bgColor: "bg-[#F8FAFC]",
-    borderColor: "border-[#E2E8F0]",
-    textColor: "text-[#94A3B8]",
+    bgColor: "bg-muted",
+    borderColor: "border-border",
+    textColor: "text-muted-foreground",
     shadow: "shadow-sm",
-    width: 180,
-    height: 52,
+    width: 120,
+    height: 50,
     fontSize: "text-xs",
   },
 }
@@ -363,18 +420,18 @@ const statusConfig: Record<SubstituteStatus, {
 // Empty state illustration component
 const EmptyStateIllustration = () => (
   <div className="relative w-48 h-48 mx-auto mb-6">
-    <div className="absolute inset-0 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full opacity-50 animate-pulse" />
-    <div className="absolute inset-4 bg-gradient-to-br from-blue-200 to-blue-100 rounded-full opacity-30" />
+    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full opacity-50 animate-pulse" />
+    <div className="absolute inset-4 bg-gradient-to-br from-primary/20 to-primary/10 rounded-full opacity-30" />
     <div className="absolute inset-0 flex items-center justify-center">
-      <div className="w-20 h-20 bg-gradient-to-br from-[#1D4ED8] to-[#3B82F6] rounded-2xl shadow-xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
-        <GitCommit className="w-10 h-10 text-white" />
+      <div className="w-20 h-20 bg-gradient-to-br from-primary to-primary/80 rounded-2xl shadow-xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
+        <GitCommit className="w-10 h-10 text-primary-foreground" />
       </div>
     </div>
-    <div className="absolute top-2 right-2 w-8 h-8 bg-white rounded-lg shadow-md border border-blue-200 flex items-center justify-center animate-bounce" style={{ animationDuration: '2s' }}>
-      <Box className="w-4 h-4 text-blue-500" />
+    <div className="absolute top-2 right-2 w-8 h-8 bg-card rounded-lg shadow-md border border-primary/20 flex items-center justify-center animate-bounce" style={{ animationDuration: '2s' }}>
+      <Box className="w-4 h-4 text-primary" />
     </div>
-    <div className="absolute bottom-4 left-2 w-6 h-6 bg-blue-100 rounded-md shadow-sm flex items-center justify-center" style={{ animation: 'pulse 3s infinite' }}>
-      <Target className="w-3 h-3 text-blue-600" />
+    <div className="absolute bottom-4 left-2 w-6 h-6 bg-primary/10 rounded-md shadow-sm flex items-center justify-center" style={{ animation: 'pulse 3s infinite' }}>
+      <Target className="w-3 h-3 text-primary" />
     </div>
   </div>
 )
@@ -424,52 +481,62 @@ export default function ComponentGraphPage() {
     const mainFru = allNodes.get("FRU-MAIN")
     if (!mainFru) return
     
-    // Add FRU substitutes if expanded
-    if (expandedFruSubs) {
-      mainFru.substitutes?.forEach(id => {
-        const subNode = allNodes.get(id)
+    // Add FRU substitutes if expanded (默认显示前3个)
+    if (expandedFruSubs && mainFru.substitutes) {
+      const visibleCount = mainFru.showAllSubstitutes 
+        ? mainFru.substitutes.length 
+        : Math.min(3, mainFru.substitutes.length)
+      
+      for (let i = 0; i < visibleCount; i++) {
+        const subId = mainFru.substitutes[i]
+        const subNode = allNodes.get(subId)
         // 如果开启 Available Node 过滤，隐藏 Ineffective 节点
-        if (showAvailableOnly && subNode?.status === "ineffective") return
+        if (showAvailableOnly && subNode?.status === "ineffective") continue
         
-        newVisibleIds.add(id)
+        newVisibleIds.add(subId)
         let label = "Equivalent"
         if (subNode?.status === "ineffective") label = "Soft"
-        newEdges.push({ from: "FRU-MAIN", to: id, type: "substitute", label })
-      })
+        newEdges.push({ from: "FRU-MAIN", to: subId, type: "substitute", label })
+      }
     }
     
-    // Add Lenovo PPN nodes and their children/substitutes
-    mainFru.children?.forEach(lenovoId => {
-      newVisibleIds.add(lenovoId)
-      newEdges.push({ from: "FRU-MAIN", to: lenovoId, type: "hierarchy" })
+    // Add Lenovo PPN nodes and their vendors/substitutes
+    const lenovoLevels = ["L1", "L2", "L3", "L4"]
+    lenovoLevels.forEach(level => {
+      const lenovoNode = Array.from(allNodes.values()).find(n => n.level === level && n.type === "lenovo-ppn")
+      if (!lenovoNode) return
       
-      const lenovoNode = allNodes.get(lenovoId)
-      if (lenovoNode) {
-        // Add Vendor PPN children
-        lenovoNode.children?.forEach(vendorId => {
+      newVisibleIds.add(lenovoNode.id)
+      newEdges.push({ from: "FRU-MAIN", to: lenovoNode.id, type: "hierarchy" })
+      
+      // Add Vendor PPN nodes
+      if (lenovoNode.vendors) {
+        lenovoNode.vendors.forEach(vendorId => {
           const vendorNode = allNodes.get(vendorId)
           // 如果开启 Available Node 过滤，隐藏 Ineffective 节点
           if (showAvailableOnly && vendorNode?.status === "ineffective") return
           
           newVisibleIds.add(vendorId)
-          // Lenovo PPN to Vendor PPN
-          newEdges.push({ from: lenovoId, to: vendorId, type: "hierarchy" })
-          // FRU directly to Vendor PPN (跨级连接)
-          newEdges.push({ from: "FRU-MAIN", to: vendorId, type: "hierarchy" })
+          newEdges.push({ from: lenovoNode.id, to: vendorId, type: "hierarchy" })
         })
+      }
+      
+      // Add Lenovo PPN substitutes if expanded (默认显示前3个)
+      if (lenovoNode.isExpanded && lenovoNode.substitutes) {
+        const visibleCount = lenovoNode.showAllSubstitutes 
+          ? lenovoNode.substitutes.length 
+          : Math.min(3, lenovoNode.substitutes.length)
         
-        // Add Lenovo PPN substitutes if expanded
-        if (expandedLenovoSubs.has(lenovoId)) {
-          lenovoNode.substitutes?.forEach(subId => {
-            const subNode = allNodes.get(subId)
-            // 如果开启 Available Node 过滤，隐藏 Ineffective 节点
-            if (showAvailableOnly && subNode?.status === "ineffective") return
-            
-            newVisibleIds.add(subId)
-            let label = "Equivalent"
-            if (subNode?.status === "ineffective") label = "Soft"
-            newEdges.push({ from: lenovoId, to: subId, type: "substitute", label })
-          })
+        for (let i = 0; i < visibleCount; i++) {
+          const subId = lenovoNode.substitutes[i]
+          const subNode = allNodes.get(subId)
+          // 如果开启 Available Node 过滤，隐藏 Ineffective 节点
+          if (showAvailableOnly && subNode?.status === "ineffective") continue
+          
+          newVisibleIds.add(subId)
+          let label = "Equivalent"
+          if (subNode?.status === "ineffective") label = "Soft"
+          newEdges.push({ from: lenovoNode.id, to: subId, type: "substitute", label })
         }
       }
     })
@@ -477,24 +544,50 @@ export default function ComponentGraphPage() {
     const nodes = Array.from(newVisibleIds).map(id => allNodes.get(id)).filter(Boolean) as GraphNode[]
     setVisibleNodes(nodes)
     setVisibleEdges(newEdges)
-  }, [expandedFruSubs, expandedLenovoSubs, showAvailableOnly])
+  }, [expandedFruSubs, showAvailableOnly])
 
   // Toggle FRU substitutes expansion
   const toggleFruSubstitutes = () => {
-    setExpandedFruSubs(prev => !prev)
+    const mainFru = allNodes.get("FRU-MAIN")
+    if (mainFru) {
+      mainFru.isExpanded = !mainFru.isExpanded
+      setExpandedFruSubs(mainFru.isExpanded)
+    }
+  }
+
+  // Toggle "View All" for FRU substitutes
+  const toggleFruViewAll = () => {
+    const mainFru = allNodes.get("FRU-MAIN")
+    if (mainFru) {
+      mainFru.showAllSubstitutes = !mainFru.showAllSubstitutes
+      updateVisibleElements()
+    }
   }
 
   // Toggle Lenovo PPN substitutes expansion
   const toggleLenovoSubstitutes = (nodeId: string) => {
-    setExpandedLenovoSubs(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(nodeId)) {
-        newSet.delete(nodeId)
-      } else {
-        newSet.add(nodeId)
-      }
-      return newSet
-    })
+    const node = allNodes.get(nodeId)
+    if (node && node.type === "lenovo-ppn") {
+      node.isExpanded = !node.isExpanded
+      setExpandedLenovoSubs(prev => {
+        const newSet = new Set(prev)
+        if (newSet.has(nodeId)) {
+          newSet.delete(nodeId)
+        } else {
+          newSet.add(nodeId)
+        }
+        return newSet
+      })
+    }
+  }
+
+  // Toggle "View All" for Lenovo PPN substitutes
+  const toggleLenovoViewAll = (nodeId: string) => {
+    const node = allNodes.get(nodeId)
+    if (node && node.type === "lenovo-ppn") {
+      node.showAllSubstitutes = !node.showAllSubstitutes
+      updateVisibleElements()
+    }
   }
 
   // Get directly connected node IDs for highlighting (only immediate neighbors)
@@ -632,7 +725,7 @@ export default function ComponentGraphPage() {
     generateMockData(item.id, item.type)
     setHasSearched(true)
     setExpandedFruSubs(true)
-    setExpandedLenovoSubs(new Set(["LEN-001", "LEN-003"]))
+    setExpandedLenovoSubs(new Set(["LEN-L1-001", "LEN-L2-001", "LEN-L3-001"]))
     
     setTimeout(() => {
       const rootNode = allNodes.get("FRU-MAIN")
@@ -739,7 +832,7 @@ export default function ComponentGraphPage() {
     }
     
     if (edge.type === "substitute") {
-      // 替代关系：蓝色虚线
+      // 替代关系：蓝色虚线（与箭头颜色一致）
       return {
         stroke: "#3B82F6",
         strokeWidth: 1.5,
@@ -748,9 +841,9 @@ export default function ComponentGraphPage() {
       }
     }
     
-    // 标准层级关系：蓝色实线
+    // 标准层级关系：蓝色实线（与箭头颜色一致）
     return {
-      stroke: "#1D4ED8",
+      stroke: "#3B82F6",
       strokeWidth: 2,
       strokeDasharray: undefined,
       opacity: 1,
@@ -759,6 +852,9 @@ export default function ComponentGraphPage() {
 
   // 获取节点层级标签
   const getNodeLevel = (node: GraphNode): string | null => {
+    // 优先使用节点的 level 属性
+    if (node.level) return node.level
+    // 兼容旧逻辑
     if (node.type === "lenovo-ppn") {
       if (node.id === "LEN-001") return "L1"
       if (node.id === "LEN-002") return "L2"
@@ -782,10 +878,7 @@ export default function ComponentGraphPage() {
     const isFruSub = node.type === "fru-substitute"
     const isLenovoPpn = node.type === "lenovo-ppn"
     const isLenovoSub = node.type === "lenovo-ppn-substitute"
-    const isVendorPpn = node.type === "vendor-ppn"
-    const hasSubstitutes = (node.substitutes && node.substitutes.length > 0)
     
-    const isExpanded = isFru ? expandedFruSubs : expandedLenovoSubs.has(node.id)
     const isIneffective = node.status === "ineffective"
     const isTopmost = node.status === "topmost"
     const level = getNodeLevel(node)
@@ -808,14 +901,14 @@ export default function ComponentGraphPage() {
           isMainNode ? "px-3 py-2.5" : "px-2.5 py-2",
           // 基础样式 - FRU家族（FRU和FRU Substitute）使用相同样式，Topmost也使用FRU样式
           isIneffective 
-            ? "bg-slate-100 border border-slate-200"
+            ? "bg-muted border border-border"
             : isFruFamily
-              ? "bg-gradient-to-br from-[#1E3A8A] to-[#1E40AF] border border-blue-700 shadow-lg shadow-blue-900/20"
+              ? "bg-gradient-to-br from-primary to-primary/80 border border-primary shadow-lg shadow-primary/20"
               : isLenovoFamily
-                ? "bg-gradient-to-br from-[#3B82F6] to-[#60A5FA] border border-blue-500 shadow-lg shadow-blue-500/20"
-                : "bg-white border border-slate-200 shadow-md",
+                ? "bg-gradient-to-br from-secondary to-secondary/80 border border-primary/50 shadow-lg shadow-primary/10"
+                : "bg-card border border-border shadow-md",
           // 选中状态
-          isSelected && "ring-2 ring-offset-2 ring-blue-500",
+          isSelected && "ring-2 ring-offset-2 ring-primary",
           // 悬停或选中状态 - 点扩张效果
           (isHovered || isSelected) && "scale-[1.02] shadow-2xl z-30",
           // 高亮/变暗效果
@@ -899,7 +992,7 @@ export default function ComponentGraphPage() {
     )
   }
   
-  // Render expand/collapse hotspot button
+  // Render expand/collapse hotspot button - 放在节点左侧
   const renderExpandButton = (node: GraphNode) => {
     const isFru = node.type === "fru"
     const isLenovoPpn = node.type === "lenovo-ppn"
@@ -928,8 +1021,8 @@ export default function ComponentGraphPage() {
             : "bg-blue-500 border-blue-500 text-white hover:bg-blue-600"
         )}
         style={{
-          left: node.x + config.width / 2 - 12,
-          top: node.y + config.height + 8,
+          left: node.x - 32,
+          top: node.y + config.height / 2 - 12,
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
           transformOrigin: "0 0",
         }}
@@ -943,12 +1036,58 @@ export default function ComponentGraphPage() {
     )
   }
 
+  // Render "View All" button for substitutes
+  const renderViewAllButton = (node: GraphNode) => {
+    const isFru = node.type === "fru"
+    const isLenovoPpn = node.type === "lenovo-ppn"
+    const hasSubstitutes = (node.substitutes && node.substitutes.length > 0)
+    const substituteCount = node.substitutes?.length || 0
+    
+    if (!isFru && !isLenovoPpn) return null
+    if (!hasSubstitutes || substituteCount <= 3) return null
+    
+    const isNodeExpanded = isFru ? expandedFruSubs : expandedLenovoSubs.has(node.id)
+    if (!isNodeExpanded) return null
+    
+    const showAll = node.showAllSubstitutes || false
+    
+    // 计算按钮位置（在替换节点列表下方）
+    const visibleCount = showAll ? substituteCount : Math.min(3, substituteCount)
+    const lastSubId = node.substitutes?.[visibleCount - 1]
+    const lastSubNode = lastSubId ? allNodes.get(lastSubId) : null
+    
+    if (!lastSubNode) return null
+    
+    return (
+      <div
+        key={`${node.id}-view-all-btn`}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (isFru) {
+            toggleFruViewAll()
+          } else {
+            toggleLenovoViewAll(node.id)
+          }
+        }}
+        className="absolute px-3 py-1.5 bg-white border border-blue-300 rounded-lg text-xs font-medium text-blue-600 cursor-pointer transition-all duration-200 hover:bg-blue-50 hover:border-blue-400 z-20 shadow-sm"
+        style={{
+          left: lastSubNode.x,
+          top: lastSubNode.y + 60,
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+          transformOrigin: "0 0",
+        }}
+      >
+        {showAll ? "Show Less" : `View All (${substituteCount})`}
+      </div>
+    )
+  }
+
   return (
     <TooltipProvider>
       <MainLayout className="p-0 lg:p-6">
         <div className="h-full flex flex-col bg-background">
           {/* Header Section */}
-          <div className="bg-white">
+          <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h1 className="text-xl font-semibold text-foreground">Component Graph</h1>
@@ -966,9 +1105,9 @@ export default function ComponentGraphPage() {
           </div>
 
           {/* Search Panel */}
-          <div className="bg-white py-6">
+          <div className="py-6">
             <div className="flex gap-3 items-center">
-              <div className="relative w-[200px]">
+              <div className="relative flex-1 min-w-0">
                 <Input
                   placeholder="FRU"
                   value={fruQuery}
@@ -980,7 +1119,7 @@ export default function ComponentGraphPage() {
                     }
                   }}
                   onKeyDown={(e) => e.key === "Enter" && handleQuery()}
-                  className="pr-8 h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary"
+                  className="pr-8 h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary w-full"
                 />
                 {fruQuery && (
                   <button
@@ -992,7 +1131,7 @@ export default function ComponentGraphPage() {
                 )}
               </div>
 
-              <div className="relative w-[200px]">
+              <div className="relative flex-1 min-w-0">
                 <Input
                   placeholder="Lenovo PPN"
                   value={lenovoPpnQuery}
@@ -1004,7 +1143,7 @@ export default function ComponentGraphPage() {
                     }
                   }}
                   onKeyDown={(e) => e.key === "Enter" && handleQuery()}
-                  className="pr-8 h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary"
+                  className="pr-8 h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary w-full"
                 />
                 {lenovoPpnQuery && (
                   <button
@@ -1016,7 +1155,7 @@ export default function ComponentGraphPage() {
                 )}
               </div>
 
-              <div className="relative w-[200px]">
+              <div className="relative flex-1 min-w-0">
                 <Input
                   placeholder="Vendor PPN"
                   value={vendorPpnQuery}
@@ -1028,7 +1167,7 @@ export default function ComponentGraphPage() {
                     }
                   }}
                   onKeyDown={(e) => e.key === "Enter" && handleQuery()}
-                  className="pr-8 h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary"
+                  className="pr-8 h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary w-full"
                 />
                 {vendorPpnQuery && (
                   <button
@@ -1042,7 +1181,7 @@ export default function ComponentGraphPage() {
 
               <Button 
                 onClick={handleQuery}
-                className="gap-2 bg-primary hover:bg-primary/90 transition-all duration-200 h-10 px-4"
+                className="gap-2 bg-primary hover:bg-primary/90 transition-all duration-200 h-10 px-4 flex-shrink-0"
               >
                 <Search className="h-4 w-4" />
                 Query
@@ -1052,7 +1191,7 @@ export default function ComponentGraphPage() {
                 <Button 
                   variant="ghost"
                   onClick={handleClear}
-                  className="gap-2 text-muted-foreground hover:text-foreground h-10 px-4"
+                  className="gap-2 text-muted-foreground hover:text-foreground h-10 px-4 flex-shrink-0"
                 >
                   <X className="h-4 w-4" />
                   Clear
@@ -1122,11 +1261,11 @@ export default function ComponentGraphPage() {
                       }}
                     >
                       <defs>
-                        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-                          <path d="M0,0 L0,6 L9,3 z" fill="#94A3B8" />
+                        <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="2" orient="auto" markerUnits="strokeWidth">
+                          <path d="M0,0 L0,4 L6,2 z" fill="#3B82F6" />
                         </marker>
-                        <marker id="arrowhead-highlighted" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-                          <path d="M0,0 L0,6 L9,3 z" fill="#3B82F6" />
+                        <marker id="arrowhead-highlighted" markerWidth="6" markerHeight="6" refX="5" refY="2" orient="auto" markerUnits="strokeWidth">
+                          <path d="M0,0 L0,4 L6,2 z" fill="#1D4ED8" />
                         </marker>
                         {/* 光流动画渐变 */}
                         <linearGradient id="flowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1245,6 +1384,9 @@ export default function ComponentGraphPage() {
                     
                     {/* Expand/Collapse Buttons */}
                     {visibleNodes.filter(n => n.type === "fru" || (n.type === "lenovo-ppn" && n.substitutes && n.substitutes.length > 0)).map(renderExpandButton)}
+                    
+                    {/* View All Buttons */}
+                    {visibleNodes.filter(n => (n.type === "fru" || n.type === "lenovo-ppn") && n.substitutes && n.substitutes.length > 3).map(renderViewAllButton)}
                   </div>
 
                   {/* Available Node Switch - 画布区域右上角 */}
@@ -1261,18 +1403,18 @@ export default function ComponentGraphPage() {
                     )}
 
                     {/* Legend */}
-                  <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg border border-border p-3 shadow-lg">
+                  <div className="absolute bottom-4 left-4 bg-card/90 backdrop-blur-sm rounded-lg border border-border p-3 shadow-lg">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded bg-gradient-to-br from-[#1E3A8A] to-[#1E40AF]" />
+                        <div className="w-4 h-4 rounded bg-gradient-to-br from-primary to-primary/80" />
                         <span className="text-xs text-muted-foreground">FRU</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded bg-gradient-to-br from-[#3B82F6] to-[#60A5FA]" />
+                        <div className="w-4 h-4 rounded bg-gradient-to-br from-secondary to-secondary/80" />
                         <span className="text-xs text-muted-foreground">Lenovo PPN</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded bg-white border border-slate-300" />
+                        <div className="w-4 h-4 rounded bg-card border border-border" />
                         <span className="text-xs text-muted-foreground">Vendor PPN</span>
                       </div>
                     </div>
@@ -1360,21 +1502,21 @@ export default function ComponentGraphPage() {
                       ) : (
                         <>
                           <span className={cn(
-                            "px-3 py-1 text-white text-xs font-medium rounded-full",
-                            selectedNode.type === "fru" ? "bg-[#1E3A8A]" : "bg-[#3B82F6]"
+                            "px-3 py-1 text-primary-foreground text-xs font-medium rounded-full",
+                            selectedNode.type === "fru" ? "bg-primary" : "bg-secondary text-primary"
                           )}>
                             {selectedNode.type === "fru" ? "FRU" : "Lenovo PPN"}
                           </span>
                           {selectedNode.type === "lenovo-ppn" && getNodeLevel(selectedNode) && (
-                            <span className="px-3 py-1 bg-white text-slate-600 text-xs font-medium rounded-full border border-slate-300">
+                            <span className="px-3 py-1 bg-card text-muted-foreground text-xs font-medium rounded-full border border-border">
                               {getNodeLevel(selectedNode)}
                             </span>
                           )}
                           <span className={cn(
                             "px-3 py-1 text-xs font-medium rounded-full",
                             selectedNode.status === "ineffective"
-                              ? "bg-slate-100 text-slate-500"
-                              : "bg-blue-50 text-blue-600"
+                              ? "bg-muted text-muted-foreground"
+                              : "bg-secondary text-primary"
                           )}>
                             {selectedNode.status === "ineffective" ? "Ineffective" : "Effective"}
                           </span>

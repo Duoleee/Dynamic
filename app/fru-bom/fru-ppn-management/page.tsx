@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -409,12 +409,43 @@ export default function FruPpnManagementPage() {
   const [changelogOpen, setChangelogOpen] = useState(false)
   const [selectedFru, setSelectedFru] = useState<string>("")
 
+  // Filter states
+  const [fruSearch, setFruSearch] = useState<string>("")
+  const [fruNameSearch, setFruNameSearch] = useState<string>("")
+  const [lenovoPpnSearch, setLenovoPpnSearch] = useState<string>("")
+  const [vendorPpnSearch, setVendorPpnSearch] = useState<string>("")
+
+  // Filter data
+  const filteredData = allData.filter((row) => {
+    if (fruSearch && !row.fru.toLowerCase().includes(fruSearch.toLowerCase())) return false
+    if (fruNameSearch && !row.fruName.toLowerCase().includes(fruNameSearch.toLowerCase())) return false
+    if (lenovoPpnSearch && !row.lenovoPpn.toLowerCase().includes(lenovoPpnSearch.toLowerCase())) return false
+    if (vendorPpnSearch && !row.vendorPpn.toLowerCase().includes(vendorPpnSearch.toLowerCase())) return false
+    return true
+  })
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [fruSearch, fruNameSearch, lenovoPpnSearch, vendorPpnSearch])
+
   // Pagination
-  const totalRows = allData.length
+  const totalRows = filteredData.length
   const totalPages = Math.ceil(totalRows / rowsPerPage)
   const startIndex = (currentPage - 1) * rowsPerPage
   const endIndex = Math.min(startIndex + rowsPerPage, totalRows)
-  const currentData = allData.slice(startIndex, endIndex)
+  const currentData = filteredData.slice(startIndex, endIndex)
+
+  // Reset all filters
+  const resetFilters = () => {
+    setFruSearch("")
+    setFruNameSearch("")
+    setLenovoPpnSearch("")
+    setVendorPpnSearch("")
+  }
+
+  // Check if any filter is active
+  const hasActiveFilters = fruSearch || fruNameSearch || lenovoPpnSearch || vendorPpnSearch
 
   // Toggle row expansion
   const toggleRowExpansion = (id: string) => {
@@ -447,26 +478,26 @@ export default function FruPpnManagementPage() {
         return (
           <button
             onClick={() => handleFruClick(row.fru)}
-            className="text-sm font-medium text-primary font-mono hover:underline cursor-pointer bg-transparent border-none p-0"
+            className="text-sm font-normal text-primary font-mono hover:underline cursor-pointer bg-transparent border-none p-0"
           >
             {row.fru}
           </button>
         )
       case "fruName":
-        return <span className="text-sm text-foreground">{row.fruName}</span>
+        return <span className="text-sm font-normal text-foreground">{row.fruName}</span>
       case "substituteFru":
-        if (row.substituteFru.length === 0) return <span className="text-sm text-muted-foreground">-</span>
+        if (row.substituteFru.length === 0) return <span className="text-sm font-normal text-muted-foreground">-</span>
         const displayText = row.substituteFru.join(", ")
         return (
           <Popover>
             <PopoverTrigger>
               <div className="w-full flex items-center justify-center cursor-pointer">
-                <span className="text-sm text-foreground line-clamp-2 text-center">{displayText}</span>
+                <span className="text-sm font-normal text-foreground line-clamp-2 text-center">{displayText}</span>
               </div>
             </PopoverTrigger>
             <PopoverContent className="w-auto max-w-md p-3" align="center">
               <div className="space-y-2">
-                <p className="text-sm font-medium">Substitute FRU List</p>
+                <p className="text-sm font-normal">Substitute FRU List</p>
                 <div className="flex flex-wrap gap-1">
                   {row.substituteFru.map((fru, idx) => (
                     <span key={idx} className="px-2 py-1 bg-slate-100 rounded text-xs font-mono">
@@ -479,31 +510,31 @@ export default function FruPpnManagementPage() {
           </Popover>
         )
       case "level":
-        return <span className="text-sm text-foreground">{row.level}</span>
+        return <span className="text-sm font-normal text-foreground">{row.level}</span>
       case "lenovoPpn":
-        return <span className="text-sm text-muted-foreground font-mono">{row.lenovoPpn}</span>
+        return <span className="text-sm font-normal text-muted-foreground font-mono">{row.lenovoPpn}</span>
       case "vendorPpn":
-        return <span className="text-sm text-muted-foreground font-mono">{row.vendorPpn}</span>
+        return <span className="text-sm font-normal text-muted-foreground font-mono">{row.vendorPpn}</span>
       case "substituteLenovoPpn":
-        return <span className="text-sm text-muted-foreground font-mono">{row.substituteLenovoPpn}</span>
+        return <span className="text-sm font-normal text-muted-foreground font-mono">{row.substituteLenovoPpn}</span>
       case "lenovoPpnBasicName":
-        return <span className="text-sm text-foreground">{row.lenovoPpnBasicName}</span>
+        return <span className="text-sm font-normal text-foreground">{row.lenovoPpnBasicName}</span>
       case "lenovoPpnName":
-        return <span className="text-sm text-foreground">{row.lenovoPpnName}</span>
+        return <span className="text-sm font-normal text-foreground">{row.lenovoPpnName}</span>
       case "lenovoPpnQty":
-        return <span className="text-sm text-foreground">{row.lenovoPpnQty}</span>
+        return <span className="text-sm font-normal text-foreground">{row.lenovoPpnQty}</span>
       case "specCategory":
-        return <span className="text-sm text-foreground">{row.specCategory}</span>
+        return <span className="text-sm font-normal text-foreground">{row.specCategory}</span>
       case "specDescription":
-        return <span className="text-sm text-foreground">{row.specDescription}</span>
+        return <span className="text-sm font-normal text-foreground">{row.specDescription}</span>
       case "attributeValue":
-        return <span className="text-sm text-foreground">{row.attributeValue}</span>
+        return <span className="text-sm font-normal text-foreground">{row.attributeValue}</span>
       case "ppnDesc":
-        return <span className="text-sm text-foreground">{row.ppnDesc}</span>
+        return <span className="text-sm font-normal text-foreground">{row.ppnDesc}</span>
       case "odmSupplierName":
-        return <span className="text-sm text-foreground">{row.odmSupplierName}</span>
+        return <span className="text-sm font-normal text-foreground">{row.odmSupplierName}</span>
       case "commGroup":
-        return <span className="text-sm text-foreground">{row.commGroup}</span>
+        return <span className="text-sm font-normal text-foreground">{row.commGroup}</span>
       default:
         return null
     }
@@ -515,7 +546,7 @@ export default function FruPpnManagementPage() {
     <MainLayout className="p-0 lg:p-6">
       <div className="h-full flex flex-col bg-background overflow-hidden">
         {/* Header Section - 与Component Graph保持一致 */}
-        <div className="bg-white shrink-0">
+        <div className="shrink-0">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-semibold text-foreground">FRU-PPN Management</h1>
             <Button variant="outline" size="sm" className="gap-2 hover:bg-gray-50">
@@ -525,43 +556,54 @@ export default function FruPpnManagementPage() {
           </div>
         </div>
 
-        {/* Search Panel - 与Component Graph保持一致 */}
+        {/* Filter Panel */}
         <div className="bg-white py-6 shrink-0">
-          <div className="flex items-center gap-3">
-            {/* Filters - 横向排列的输入框 */}
-            <div className="relative w-[200px]">
+          <div className="flex items-start gap-3">
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* FRU - Search */}
               <Input
                 placeholder="FRU"
-                className="h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary"
+                value={fruSearch}
+                onChange={(e) => setFruSearch(e.target.value)}
+                className="h-10"
               />
-            </div>
 
-            <div className="relative w-[200px]">
+              {/* FRU Name - Search */}
               <Input
-                placeholder="Fru Name"
-                className="h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary"
+                placeholder="FRU Name"
+                value={fruNameSearch}
+                onChange={(e) => setFruNameSearch(e.target.value)}
+                className="h-10"
               />
-            </div>
 
-            <div className="relative w-[200px]">
+              {/* Lenovo PPN - Search */}
               <Input
                 placeholder="Lenovo PPN"
-                className="h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary"
+                value={lenovoPpnSearch}
+                onChange={(e) => setLenovoPpnSearch(e.target.value)}
+                className="h-10"
               />
-            </div>
 
-            <div className="relative w-[200px]">
+              {/* Vendor PPN - Search */}
               <Input
                 placeholder="Vendor PPN"
-                className="h-10 rounded-lg focus-visible:ring-primary focus-visible:border-primary"
+                value={vendorPpnSearch}
+                onChange={(e) => setVendorPpnSearch(e.target.value)}
+                className="h-10"
               />
             </div>
 
-            <Button variant="ghost" size="icon" className="h-10 w-10">
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-
-            <div className="flex-1" />
+            {/* Reset Button - Only show when filters active */}
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={resetFilters}
+                className="h-10 w-10 shrink-0 text-muted-foreground"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            )}
 
             {/* Column Settings */}
             <Popover>
@@ -661,7 +703,7 @@ export default function FruPpnManagementPage() {
                         {/* Frozen FRU Column */}
                         <div className="sticky left-0 z-10 bg-background border-r shrink-0">
                           <div className="flex items-center h-12 px-4" style={{ width: 100 }}>
-                            <span className="text-sm font-medium text-primary font-mono">
+                            <span className="text-sm font-normal text-primary font-mono">
                               {row.fru}
                             </span>
                           </div>
@@ -703,9 +745,9 @@ export default function FruPpnManagementPage() {
                             childIndex % 2 === 0 ? "bg-blue-100" : "bg-blue-200"
                           )}>
                             <div className="flex items-center h-12 px-4" style={{ width: 100 }}>
-                              <span className="text-sm font-medium text-primary font-mono">
-                                {child.fru}
-                              </span>
+                              <span className="text-sm font-normal text-primary font-mono">
+                              {child.fru}
+                            </span>
                             </div>
                           </div>
 
