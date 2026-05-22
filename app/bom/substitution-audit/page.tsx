@@ -58,9 +58,9 @@ import {
 import { cn } from "@/lib/utils"
 import { AuditDialog } from "./components/audit-dialog"
 import { BatchActions } from "@/components/ui/batch-actions"
-import { BatchConfirmDialog } from "./components/batch-confirm-dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { RevokeDialog } from "./components/revoke-dialog"
-import { ViewDialog } from "./components/view-dialog"
+import { ViewSheet } from "./components/view-sheet"
 import { toast } from "sonner"
 
 interface Column {
@@ -88,6 +88,7 @@ interface SubstitutionData {
   createdTime: string
   auditor: string
   auditTime: string
+  notes?: string
   existingSubstitutes?: ExistingSubstitute[]
 }
 
@@ -134,6 +135,7 @@ const mockData: SubstitutionData[] = [
     createdTime: "2024-04-07 10:20",
     auditor: "Current User",
     auditTime: "2024-04-07 11:00",
+    notes: "Confirmed substitution after verifying compatibility",
   },
   {
     id: "4",
@@ -621,6 +623,7 @@ export default function SubstitutionAuditPage() {
           <Checkbox
             checked={selectedRows.includes(row.id)}
             onCheckedChange={() => toggleRowSelection(row.id)}
+            disabled={row.status !== "Pending"}
           />
         )
       case "lenovoPpn":
@@ -1043,12 +1046,14 @@ export default function SubstitutionAuditPage() {
       />
 
       {/* Batch Confirm Dialog */}
-      <BatchConfirmDialog
+      <ConfirmDialog
         open={batchConfirmOpen}
         onOpenChange={setBatchConfirmOpen}
-        lenovoPpnList={selectedRowsForBatch.map(r => r.lenovoPpn)}
+        title={batchConfirmType === "approve" ? "Batch Approve Confirmation" : "Batch Reject Confirmation"}
+        description={`Are you sure you want to ${batchConfirmType === "approve" ? "approve" : "reject"} the following ${selectedRowsForBatch.length} substitution(s)?`}
+        confirmText={batchConfirmType === "approve" ? "Confirm Approve" : "Confirm Reject"}
+        type={batchConfirmType === "approve" ? "default" : "destructive"}
         onConfirm={handleConfirmBatchAction}
-        type={batchConfirmType}
       />
 
       {/* Revoke Dialog */}
@@ -1060,8 +1065,8 @@ export default function SubstitutionAuditPage() {
         onConfirm={handleConfirmRevoke}
       />
 
-      {/* View Dialog */}
-      <ViewDialog
+      {/* View Sheet */}
+      <ViewSheet
         open={viewDialogOpen}
         onOpenChange={setViewDialogOpen}
         data={selectedRowForView}

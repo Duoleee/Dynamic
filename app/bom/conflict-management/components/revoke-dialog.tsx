@@ -52,11 +52,6 @@ export function RevokeDialog({
         </DialogHeader>
 
         <div className="py-4">
-          <div className="mb-4">
-            <span className="text-sm text-muted-foreground">FRU: </span>
-            <span className="text-sm font-medium font-mono">{fru}</span>
-          </div>
-
           <div className="space-y-3">
             <label className="text-sm font-semibold text-foreground block">
               Notes (Optional)

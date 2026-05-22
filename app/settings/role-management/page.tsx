@@ -7,15 +7,23 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Plus, Save, X, Search } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { toast } from "sonner"
 import { RoleCard } from "./components/role-card"
 import { PermissionConfig } from "./components/permission-config"
 import { RoleFormDialog } from "./components/role-form-dialog"
-import { DeleteConfirmDialog } from "./components/delete-confirm-dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Role,
   RoleFormData,
   RolePermission,
+  RoleStatus,
   mockRoles,
   mockPermissions,
 } from "./types"
@@ -24,6 +32,7 @@ export default function RoleManagementPage() {
   const [roles, setRoles] = useState<Role[]>(mockRoles)
   const [selectedRoleId, setSelectedRoleId] = useState<string>(mockRoles[0]?.id || "")
   const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<RoleStatus | "All">("All")
   const [editedPermissions, setEditedPermissions] = useState<RolePermission[] | null>(null)
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -32,15 +41,26 @@ export default function RoleManagementPage() {
 
   const canEdit = true // TODO: Check user permissions
 
-  // 根据搜索关键词过滤角色
+  // 根据搜索关键词和状态筛选角色
   const filteredRoles = useMemo(() => {
-    if (!searchQuery.trim()) return roles
-    const query = searchQuery.toLowerCase()
-    return roles.filter((role) =>
-      role.name.toLowerCase().includes(query) ||
-      role.description.toLowerCase().includes(query)
-    )
-  }, [roles, searchQuery])
+    return roles.filter((role) => {
+      // 状态筛选
+      if (statusFilter !== "All" && role.status !== statusFilter) {
+        return false
+      }
+      
+      // 搜索筛选
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase()
+        return (
+          role.name.toLowerCase().includes(query) ||
+          role.description.toLowerCase().includes(query)
+        )
+      }
+      
+      return true
+    })
+  }, [roles, searchQuery, statusFilter])
 
   const selectedRole = useMemo(() => {
     return roles.find((r) => r.id === selectedRoleId) || null
@@ -158,8 +178,8 @@ export default function RoleManagementPage() {
           <CardContent className="flex-1 flex p-0 min-h-0">
             {/* 左侧：角色列表 */}
             <div className="w-[320px] flex flex-col shrink-0">
-              {/* 搜索框 */}
-              <div className="px-6 pt-6">
+              {/* 搜索框和状态筛选 */}
+              <div className="px-6 pt-6 space-y-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -169,6 +189,19 @@ export default function RoleManagementPage() {
                     className="pl-9"
                   />
                 </div>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => setStatusFilter(value as RoleStatus | "All")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All statuses</SelectItem>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
@@ -272,12 +305,24 @@ export default function RoleManagementPage() {
       />
 
       {deletingRole && (
-        <DeleteConfirmDialog
+        <ConfirmDialog
           open={isDeleteDialogOpen}
           onOpenChange={setIsDeleteDialogOpen}
-          roleName={deletingRole.name}
-          userCount={deletingRole.userCount}
+          title="Confirm Delete"
+          description={`Are you sure you want to delete the role "${deletingRole.name}"? This action cannot be undone.`}
+          type="destructive"
+          confirmText="Delete"
           onConfirm={handleConfirmDelete}
+          children={
+            deletingRole.userCount > 0 && (
+              <div className="p-3 bg-destructive/10 rounded-md">
+                <p className="text-sm text-destructive">
+                  Warning: This role is currently assigned to {deletingRole.userCount} user{deletingRole.userCount > 1 ? 's' : ''}.
+                  Deleting this role will remove it from all assigned users.
+                </p>
+              </div>
+            )
+          }
         />
       )}
     </MainLayout>

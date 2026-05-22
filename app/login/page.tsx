@@ -2,9 +2,9 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Shield } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 export default function LoginPage() {
@@ -72,9 +72,6 @@ export default function LoginPage() {
             <h1 className="text-2xl font-semibold text-center text-foreground">
               Welcome Back
             </h1>
-            <CardDescription className="text-center text-sm text-muted-foreground">
-              Sign in to access your account
-            </CardDescription>
           </div>
         </CardHeader>
         
@@ -92,17 +89,12 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <Shield className="mr-2 h-5 w-5" />
                 Login with ITcode
               </>
             )}
           </Button>
 
-          {/* Security Note */}
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>Secure authentication via corporate SSO</span>
-          </div>
+
 
           {/* Help Text */}
           <div className="pt-4 border-t border-border/30">

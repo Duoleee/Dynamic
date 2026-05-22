@@ -1,22 +1,14 @@
 "use client"
 
-import { useState, useRef } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
   User, 
   Mail, 
   Shield, 
   Calendar, 
-  Edit3, 
-  Save, 
-  X, 
   CheckCircle2,
-  Camera,
   LayoutDashboard,
   Bot,
   BookOpen,
@@ -227,7 +219,6 @@ const mockUserData = {
     { permissionId: 'p2-5-2', enabled: true },
     { permissionId: 'p2-5-3', enabled: true },
   ],
-  lastLogin: "2 hours ago",
   status: "active" as const,
 }
 
@@ -345,58 +336,16 @@ function PermissionsDisplay({
 }
 
 export default function ProfilePage() {
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [userData, setUserData] = useState(mockUserData)
-  const [editedData, setEditedData] = useState(mockUserData)
-  const avatarInputRef = useRef<HTMLInputElement>(null)
-  const bannerInputRef = useRef<HTMLInputElement>(null)
-
-  const handleSave = async () => {
-    setIsSaving(true)
-    await new Promise(resolve => setTimeout(resolve, 600))
-    setUserData(editedData)
-    setIsSaving(false)
-    setIsEditing(false)
-  }
-
-  const handleCancel = () => {
-    setEditedData(userData)
-    setIsEditing(false)
-  }
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setEditedData({ ...editedData, avatar: reader.result as string })
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setEditedData({ ...editedData, banner: reader.result as string })
-      }
-      reader.readAsDataURL(file)
-    }
-  }
+  const userData = mockUserData
 
   const getAvatarUrl = () => {
-    if (isEditing && editedData.avatar) return editedData.avatar
     if (userData.avatar) return userData.avatar
     return `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.itcode}`
   }
 
   const getBannerStyle = () => {
-    const bannerUrl = isEditing ? editedData.banner || userData.banner : userData.banner
-    if (bannerUrl) {
-      return { backgroundImage: `url(${bannerUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    if (userData.banner) {
+      return { backgroundImage: `url(${userData.banner})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     }
     return { background: DEFAULT_BANNER }
   }
@@ -404,40 +353,20 @@ export default function ProfilePage() {
   const InfoField = ({ 
     icon: Icon, 
     label, 
-    value, 
-    editable = false,
-    fieldKey
+    value 
   }: { 
     icon: React.ElementType
     label: string
     value: string
-    editable?: boolean
-    fieldKey?: keyof typeof editedData
   }) => (
-    <div className="group space-y-2">
-      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+    <div className="space-y-2">
+      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
         <Icon className="h-3.5 w-3.5" />
         {label}
-      </Label>
-      {isEditing && editable && fieldKey ? (
-        <Input
-          value={editedData[fieldKey] as string}
-          onChange={(e) => setEditedData({ ...editedData, [fieldKey]: e.target.value })}
-          className="h-9 rounded-md transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-        />
-      ) : (
-        <div className="flex items-center gap-2">
-          <p className={cn(
-            "text-sm font-medium py-1.5",
-            editable && "group-hover:text-primary transition-colors duration-200"
-          )}>
-            {value}
-          </p>
-          {editable && !isEditing && (
-            <Edit3 className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-          )}
-        </div>
-      )}
+      </div>
+      <p className="text-sm font-medium py-1.5">
+        {value}
+      </p>
     </div>
   )
 
@@ -448,49 +377,6 @@ export default function ProfilePage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-foreground tracking-tight">Profile</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage your personal information and account settings
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isEditing ? (
-              <Button 
-                onClick={() => setIsEditing(true)} 
-                variant="outline" 
-                className="gap-2 h-10 px-4 rounded-lg transition-all duration-200 hover:bg-muted"
-              >
-                <Edit3 className="h-4 w-4" />
-                Edit Profile
-              </Button>
-            ) : (
-              <>
-                <Button 
-                  onClick={handleCancel} 
-                  variant="outline" 
-                  className="gap-2 h-10 px-4 rounded-lg transition-all duration-200"
-                >
-                  <X className="h-4 w-4" />
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleSave} 
-                  disabled={isSaving}
-                  className="gap-2 h-10 px-4 rounded-lg transition-all duration-200"
-                >
-                  {isSaving ? (
-                    <>
-                      <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-              </>
-            )}
           </div>
         </div>
 
@@ -498,36 +384,15 @@ export default function ProfilePage() {
         <Card className="rounded-xl overflow-hidden border-border/50 shadow-sm py-0">
           {/* Profile Banner */}
           <div 
-            className="h-40 relative group"
+            className="h-40"
             style={getBannerStyle()}
-          >
-            {isEditing && (
-              <>
-                <button
-                  onClick={() => bannerInputRef.current?.click()}
-                  className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
-                >
-                  <div className="flex flex-col items-center gap-2 text-white">
-                    <Camera className="h-8 w-8" />
-                    <span className="text-sm font-medium">Change Banner</span>
-                  </div>
-                </button>
-                <input
-                  ref={bannerInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleBannerChange}
-                  className="hidden"
-                />
-              </>
-            )}
-          </div>
+          />
           
           <CardContent className="px-8">
             <div className="flex flex-col md:flex-row gap-8 -mt-16">
               {/* Avatar Section */}
               <div className="flex flex-col items-center gap-4">
-                <div className="relative group">
+                <div className="relative">
                   <div className="h-32 w-32 rounded-full border-4 border-background shadow-xl overflow-hidden bg-white">
                     <img 
                       src={getAvatarUrl()} 
@@ -535,23 +400,6 @@ export default function ProfilePage() {
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  {isEditing && (
-                    <>
-                      <button
-                        onClick={() => avatarInputRef.current?.click()}
-                        className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
-                      >
-                        <Camera className="h-8 w-8 text-white" />
-                      </button>
-                      <input
-                        ref={avatarInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAvatarChange}
-                        className="hidden"
-                      />
-                    </>
-                  )}
                 </div>
                 <div className="text-center">
                   <Badge 
@@ -573,15 +421,11 @@ export default function ProfilePage() {
                     icon={User} 
                     label="Full Name" 
                     value={userData.name}
-                    editable
-                    fieldKey="name"
                   />
                   <InfoField 
                     icon={Mail} 
                     label="Email Address" 
                     value={userData.email}
-                    editable
-                    fieldKey="email"
                   />
                   <InfoField 
                     icon={Shield} 
@@ -594,13 +438,6 @@ export default function ProfilePage() {
                     value={userData.joinDate}
                   />
                 </div>
-
-                {/* Last Login Info */}
-                <div className="mt-6 pt-6 border-t border-border/50">
-                  <p className="text-xs text-muted-foreground">
-                    Last login: <span className="text-foreground font-medium">{userData.lastLogin}</span>
-                  </p>
-                </div>
               </div>
             </div>
           </CardContent>
@@ -611,9 +448,6 @@ export default function ProfilePage() {
           <CardHeader className="px-6 pt-5 pb-4">
             <div>
               <CardTitle className="text-base font-semibold">Permissions</CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                Your system access and capabilities based on role
-              </CardDescription>
             </div>
           </CardHeader>
           <CardContent className="px-6 pb-6">

@@ -57,9 +57,10 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ResolvedDialog } from "./resolved-dialog"
-import { BatchActions } from "./components/batch-actions"
-import { BatchResolveDialog } from "./components/batch-resolve-dialog"
+import { BatchActions } from "@/components/ui/batch-actions"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { RevokeDialog } from "./components/revoke-dialog"
+import { ViewSheet } from "./components/view-sheet"
 
 interface Column {
   key: string
@@ -78,6 +79,7 @@ interface ConflictData {
   createdTime: string
   auditor: string
   auditTime: string
+  notes?: string
 }
 
 const mockData: ConflictData[] = [
@@ -113,6 +115,7 @@ const mockData: ConflictData[] = [
     createdTime: "2024-04-07 10:20",
     auditor: "Current User",
     auditTime: "2024-04-07 11:00",
+    notes: "Confirmed and resolved after verification.",
   },
   {
     id: "4",
@@ -196,7 +199,7 @@ const defaultColumns: Column[] = [
   { key: "createdTime", label: "Created Time", width: 160, visible: true },
   { key: "auditor", label: "Auditor", width: 140, visible: true },
   { key: "auditTime", label: "Audit Time", width: 160, visible: true },
-  { key: "actions", label: "Actions", width: 140, visible: true },
+  { key: "actions", label: "Actions", width: 180, visible: true },
 ]
 
 // Sortable header component for column settings
@@ -249,12 +252,14 @@ function SortableHeader({ column, onToggleVisibility }: SortableHeaderProps) {
 // Sortable table header component
 interface SortableTableHeaderProps {
   column: Column
-  isFirst: boolean
   checked?: boolean
+  indeterminate?: boolean
   onCheckedChange?: () => void
 }
 
-function SortableTableHeader({ column, isFirst, checked, onCheckedChange }: SortableTableHeaderProps) {
+function SortableTableHeader({ column, checked, indeterminate, onCheckedChange }: SortableTableHeaderProps) {
+  const isCheckboxColumn = column.key === "checkbox"
+  const isActionsColumn = column.key === "actions"
   const {
     attributes,
     listeners,
@@ -262,13 +267,18 @@ function SortableTableHeader({ column, isFirst, checked, onCheckedChange }: Sort
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: column.key })
+  } = useSortable({
+    id: column.key,
+    disabled: isCheckboxColumn || isActionsColumn,
+  })
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    zIndex: isDragging ? 50 : isFirst ? 20 : 10,
+    zIndex: isDragging ? 50 : isActionsColumn ? 30 : 10,
     width: column.width,
+    position: isActionsColumn ? "sticky" : undefined,
+    right: isActionsColumn ? 0 : undefined,
   }
 
   return (
@@ -276,20 +286,24 @@ function SortableTableHeader({ column, isFirst, checked, onCheckedChange }: Sort
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center h-10 px-4 border-r shrink-0 bg-muted cursor-grab active:cursor-grabbing",
-        isFirst && "sticky left-0 z-20",
+        "flex items-center h-10 px-4 border-r shrink-0 bg-muted",
+        !isCheckboxColumn && !isActionsColumn && "cursor-grab active:cursor-grabbing",
+        isActionsColumn && "sticky right-0 border-l shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]",
         isDragging && "bg-muted shadow-lg opacity-80"
       )}
-      {...attributes}
-      {...listeners}
+      {...(!isCheckboxColumn && !isActionsColumn ? { ...attributes, ...listeners } : {})}
     >
       {column.key === "checkbox" ? (
         <Checkbox
           checked={checked}
+          indeterminate={indeterminate}
           onCheckedChange={onCheckedChange}
         />
       ) : (
-        <span className="text-xs font-semibold text-muted-foreground tracking-wider truncate">
+        <span className={cn(
+          "text-xs font-semibold text-muted-foreground tracking-wider truncate",
+          isActionsColumn && "w-full text-center"
+        )}>
           {column.label}
         </span>
       )}
@@ -318,12 +332,17 @@ export default function ConflictAuditPage() {
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false)
   const [selectedRowForRevoke, setSelectedRowForRevoke] = useState<ConflictData | null>(null)
 
+  // View Dialog state
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [selectedRowForView, setSelectedRowForView] = useState<ConflictData | null>(null)
+
   // Filter states
   const [selectedFrus, setSelectedFrus] = useState<string[]>([])
   const [basicNameSearch, setBasicNameSearch] = useState("")
   const [selectedOdms, setSelectedOdms] = useState<string[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [createdTimeRange, setCreatedTimeRange] = useState<DateRange | undefined>(undefined)
+  const [auditTimeRange, setAuditTimeRange] = useState<DateRange | undefined>(undefined)
 
   // Sensors for drag and drop
   const sensors = useSensors(
@@ -397,9 +416,24 @@ export default function ConflictAuditPage() {
         }
       }
 
+      // Audit Time filter
+      if (auditTimeRange?.from && row.auditTime) {
+        const rowDate = new Date(row.auditTime)
+        const fromDate = new Date(auditTimeRange.from)
+        fromDate.setHours(0, 0, 0, 0)
+
+        if (rowDate < fromDate) return false
+
+        if (auditTimeRange.to) {
+          const toDate = new Date(auditTimeRange.to)
+          toDate.setHours(23, 59, 59, 999)
+          if (rowDate > toDate) return false
+        }
+      }
+
       return true
     })
-  }, [selectedFrus, basicNameSearch, selectedOdms, selectedStatuses, createdTimeRange])
+  }, [selectedFrus, basicNameSearch, selectedOdms, selectedStatuses, createdTimeRange, auditTimeRange])
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -411,6 +445,16 @@ export default function ConflictAuditPage() {
   const startIndex = (currentPage - 1) * rowsPerPage
   const endIndex = Math.min(startIndex + rowsPerPage, totalRows)
   const currentData = filteredData.slice(startIndex, endIndex)
+
+  // 计算当前页可选的行（只计算 Pending 状态的）
+  const selectableRows = useMemo(() => {
+    return currentData.filter(row => row.status === "Pending")
+  }, [currentData])
+
+  // 计算已选择的行（只计算在 selectableRows 中的）
+  const selectedSelectableRows = useMemo(() => {
+    return selectableRows.filter(row => selectedRows.includes(row.id))
+  }, [selectableRows, selectedRows])
 
   const toggleColumnVisibility = (key: string) => {
     setColumns(columns.map(col =>
@@ -425,10 +469,13 @@ export default function ConflictAuditPage() {
   }
 
   const toggleAllRows = () => {
-    if (selectedRows.length === currentData.length) {
-      setSelectedRows([])
+    if (selectedSelectableRows.length === selectableRows.length) {
+      // Deselect only selectable rows
+      setSelectedRows(prev => prev.filter(id => !selectableRows.some(row => row.id === id)))
     } else {
-      setSelectedRows(currentData.map(row => row.id))
+      // Select all selectable rows
+      const selectableIds = selectableRows.map(row => row.id)
+      setSelectedRows(prev => [...new Set([...prev, ...selectableIds])])
     }
   }
 
@@ -439,6 +486,7 @@ export default function ConflictAuditPage() {
     setSelectedOdms([])
     setSelectedStatuses([])
     setCreatedTimeRange(undefined)
+    setAuditTimeRange(undefined)
   }
 
   // Check if any filter is active
@@ -446,7 +494,8 @@ export default function ConflictAuditPage() {
     basicNameSearch ||
     selectedOdms.length > 0 ||
     selectedStatuses.length > 0 ||
-    createdTimeRange?.from
+    createdTimeRange?.from ||
+    auditTimeRange?.from
 
   // Handle open resolved dialog
   const handleOpenResolvedDialog = (row: ConflictData) => {
@@ -470,7 +519,7 @@ export default function ConflictAuditPage() {
 
   // Handle batch resolve - open confirm dialog
   const handleBatchResolve = () => {
-    const selectedData = filteredData.filter(row => selectedRows.includes(row.id))
+    const selectedData = selectedSelectableRows
     setSelectedRowsForBatch(selectedData)
     setBatchResolveConfirmOpen(true)
   }
@@ -495,6 +544,12 @@ export default function ConflictAuditPage() {
     setSelectedRowForRevoke(null)
   }
 
+  // Handle open view dialog
+  const handleOpenViewDialog = (row: ConflictData) => {
+    setSelectedRowForView(row)
+    setViewDialogOpen(true)
+  }
+
   const renderCellContent = (row: ConflictData, key: string) => {
     switch (key) {
       case "checkbox":
@@ -502,6 +557,7 @@ export default function ConflictAuditPage() {
           <Checkbox
             checked={selectedRows.includes(row.id)}
             onCheckedChange={() => toggleRowSelection(row.id)}
+            disabled={row.status !== "Pending"}
           />
         )
       case "fru":
@@ -544,18 +600,18 @@ export default function ConflictAuditPage() {
             )}
             {row.status === "Resolved" && (
               <>
-                <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs">
+                <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => handleOpenViewDialog(row)}>
                   <Eye className="h-3.5 w-3.5" />
                   View
                 </Button>
-                <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleOpenRevokeDialog(row)}>
+                <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => handleOpenRevokeDialog(row)}>
                   <RotateCcw className="h-3.5 w-3.5" />
                   Revoke
                 </Button>
               </>
             )}
             {row.status === "Revoke" && (
-              <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs">
+              <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => handleOpenViewDialog(row)}>
                 <Eye className="h-3.5 w-3.5" />
                 View
               </Button>
@@ -715,6 +771,12 @@ export default function ConflictAuditPage() {
                     onChange={setCreatedTimeRange}
                     placeholder="Created Time"
                   />
+                  {/* Audit Time - Date Range */}
+                  <DateRangePicker
+                    value={auditTimeRange}
+                    onChange={setAuditTimeRange}
+                    placeholder="Audit Time"
+                  />
                 </div>
                 {/* Spacer for buttons alignment */}
                 <div className="h-10 w-10 shrink-0" />
@@ -727,8 +789,17 @@ export default function ConflictAuditPage() {
 
         {/* Batch Actions - Below Filter Panel */}
         <BatchActions
-          selectedCount={selectedRows.length}
-          onBatchResolve={handleBatchResolve}
+          selectedCount={selectedSelectableRows.length}
+          label="selected"
+          className="pb-4"
+          actions={[
+            {
+              key: "resolve",
+              label: "Batch Resolve",
+              icon: <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />,
+              onClick: handleBatchResolve,
+            },
+          ]}
         />
 
         {/* Table Container */}
@@ -748,12 +819,12 @@ export default function ConflictAuditPage() {
                     strategy={horizontalListSortingStrategy}
                   >
                     <div className="flex bg-muted border-b sticky top-0 z-10">
-                      {visibleColumns.map((col, index) => (
+                      {visibleColumns.map((col) => (
                         <SortableTableHeader
                           key={col.key}
                           column={col}
-                          isFirst={index === 0}
-                          checked={col.key === "checkbox" ? (currentData.length > 0 && selectedRows.length === currentData.length) : undefined}
+                          checked={col.key === "checkbox" ? (selectableRows.length > 0 && selectedSelectableRows.length === selectableRows.length) : undefined}
+                          indeterminate={col.key === "checkbox" ? (selectedSelectableRows.length > 0 && selectedSelectableRows.length < selectableRows.length) : undefined}
                           onCheckedChange={col.key === "checkbox" ? toggleAllRows : undefined}
                         />
                       ))}
@@ -777,19 +848,24 @@ export default function ConflictAuditPage() {
                       </Button>
                     </div>
                   ) : (
-                    currentData.map((row, index) => (
+                    currentData.map((row) => (
                       <div
                         key={row.id}
-                        className={cn(
-                          "flex border-b hover:bg-muted/50 transition-colors",
-                          index % 2 === 0 ? "bg-background" : "bg-muted/20"
-                        )}
+                        className="flex border-b hover:bg-muted transition-colors bg-background"
                       >
                         {visibleColumns.map((col) => (
                           <div
                             key={col.key}
-                            className="flex items-center h-12 px-4 border-r shrink-0"
-                            style={{ width: col.width }}
+                            className={cn(
+                              "flex items-center h-12 px-4 border-r shrink-0",
+                              col.key === "actions" && "sticky right-0 border-l shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] z-10"
+                            )}
+                            style={{ 
+                              width: col.width,
+                              position: col.key === "actions" ? "sticky" : undefined,
+                              right: col.key === "actions" ? 0 : undefined,
+                              backgroundColor: col.key === "actions" ? "var(--background)" : undefined,
+                            }}
                           >
                             {renderCellContent(row, col.key)}
                           </div>
@@ -908,10 +984,12 @@ export default function ConflictAuditPage() {
       />
 
       {/* Batch Resolve Confirm Dialog */}
-      <BatchResolveDialog
+      <ConfirmDialog
         open={batchResolveConfirmOpen}
         onOpenChange={setBatchResolveConfirmOpen}
-        fruList={selectedRowsForBatch.map(r => r.fru)}
+        title="Confirm Batch Resolve"
+        description={`Are you sure you want to resolve the following ${selectedRowsForBatch.length} conflict(s)? Once confirmed, the new PN will be added to the BOM. Qty will remain unchanged.`}
+        confirmText="Confirm"
         onConfirm={handleConfirmBatchResolve}
       />
 
@@ -921,6 +999,29 @@ export default function ConflictAuditPage() {
         onOpenChange={setRevokeDialogOpen}
         fru={selectedRowForRevoke?.fru || ""}
         onConfirm={handleConfirmRevoke}
+      />
+
+      {/* View Sheet */}
+      <ViewSheet
+        open={viewDialogOpen}
+        onOpenChange={(open) => {
+          setViewDialogOpen(open)
+          if (!open) {
+            setSelectedRowForView(null)
+          }
+        }}
+        data={selectedRowForView ? {
+          id: selectedRowForView.id,
+          fru: selectedRowForView.fru,
+          lenovoPpnBasicName: selectedRowForView.lenovoPpnBasicName,
+          lenovoPpnConflictCount: selectedRowForView.lenovoPpnConflictCount,
+          odm: selectedRowForView.odm,
+          status: selectedRowForView.status,
+          createdTime: selectedRowForView.createdTime,
+          auditor: selectedRowForView.auditor,
+          auditTime: selectedRowForView.auditTime,
+          notes: selectedRowForView.notes,
+        } : null}
       />
     </MainLayout>
   )

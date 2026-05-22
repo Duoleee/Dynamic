@@ -61,9 +61,9 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { ResolvedDialog } from "../conflict-management/resolved-dialog"
 import { BatchActions } from "../conflict-management/components/batch-actions"
-import { BatchResolveDialog } from "../conflict-management/components/batch-resolve-dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { RevokeDialog } from "../conflict-management/components/revoke-dialog"
-import { ViewDialog } from "../conflict-management/components/view-dialog"
+import { ViewSheet } from "../conflict-management/components/view-sheet"
 
 interface Column {
   key: string
@@ -83,6 +83,7 @@ interface ConflictData {
   auditor: string
   auditTime: string
   revokeReason?: string
+  notes?: string
 }
 
 const mockData: ConflictData[] = [
@@ -927,11 +928,24 @@ export default function LenovoVendorConflictPage() {
       />
 
       {/* Batch Resolve Confirm Dialog */}
-      <BatchResolveDialog
+      <ConfirmDialog
         open={batchResolveConfirmOpen}
         onOpenChange={setBatchResolveConfirmOpen}
-        fruList={selectedRowsForBatch.map(r => r.lenovoPpn)}
+        title="Confirm Batch Resolve"
+        description={`Are you sure you want to resolve the following ${selectedRowsForBatch.length} conflict(s)?`}
+        confirmText="Confirm"
         onConfirm={handleConfirmBatchResolve}
+        children={
+          <div className="max-h-32 overflow-y-auto rounded-md bg-muted p-3">
+            <ul className="space-y-1">
+              {selectedRowsForBatch.map((row) => (
+                <li key={row.id} className="text-sm font-medium font-mono">
+                  {row.lenovoPpn}
+                </li>
+              ))}
+            </ul>
+          </div>
+        }
       />
 
       {/* Revoke Dialog */}
@@ -942,8 +956,8 @@ export default function LenovoVendorConflictPage() {
         onConfirm={handleConfirmRevoke}
       />
 
-      {/* View Dialog */}
-      <ViewDialog
+      {/* View Sheet */}
+      <ViewSheet
         open={viewDialogOpen}
         onOpenChange={setViewDialogOpen}
         data={selectedRowForView}
