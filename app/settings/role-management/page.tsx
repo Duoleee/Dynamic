@@ -239,46 +239,27 @@ export default function RoleManagementPage() {
             <div className="flex-1 flex flex-col min-w-0">
               {selectedRole ? (
                 <>
-                  {/* 权限配置头部 */}
-                  <div className="pb-4 border-b shrink-0 px-6 py-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-base font-medium">Permission Configuration</div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Configure permissions for{" "}
-                          <span className="font-medium text-foreground">
-                            {selectedRole.name}
-                          </span>
-                        </p>
-                        {selectedRole.isSystem && (
-                          <p className="text-sm text-amber-600 mt-1">
-                            Super Administrator permissions cannot be modified
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {hasChanges && canEdit && !selectedRole.isSystem && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleCancelChanges}
-                            >
-                              <X className="h-4 w-4 mr-2" />
-                              Cancel
-                            </Button>
-                            <Button onClick={handleSavePermissions} size="sm">
-                              <Save className="h-4 w-4 mr-2" />
-                              Save Changes
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
                   {/* 权限配置内容 */}
-                  <div className="flex-1 min-h-0 overflow-hidden">
+                  <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+                    {/* 保存按钮区域 */}
+                    {hasChanges && canEdit && !selectedRole.isSystem && (
+                      <div className="px-6 py-4 border-b shrink-0">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleCancelChanges}
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSavePermissions} size="sm">
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Changes
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     <PermissionConfig
                       permissions={mockPermissions}
                       rolePermissions={currentPermissions}
